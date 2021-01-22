@@ -56,16 +56,16 @@ mod tests {
 
     #[test]
     fn test_parse_integer_literal() {
-        assert!(parse_integer_literal("0") == 0);
-        assert!(parse_integer_literal("123") == 123);
-        assert!(parse_integer_literal("9223372036854775807") == i64::MAX);
-        assert!(parse_integer_literal("18446744073709551616") == 0);
+        assert_eq!(parse_integer_literal("0"), 0);
+        assert_eq!(parse_integer_literal("123"), 123);
+        assert_eq!(parse_integer_literal("9223372036854775807"), i64::MAX);
+        assert_eq!(parse_integer_literal("18446744073709551616"), 0);
     }
 
     #[test]
     fn test_parse_string_literal() {
-        assert!(parse_string_literal("\"123\\n\\t\\\"\\\\xyz\"") == "123\n\t\"\\xyz");
-        assert!(parse_string_literal("\"\\110\\145\\154\\154\\157\"") == "Hello");
-        assert!(parse_string_literal("\"Hello,\\\n\t  \\ world!\"") == "Hello, world!");
+        assert_eq!(parse_string_literal("\"123\\n\\t\\\"\\\\xyz\""), "123\n\t\"\\xyz");
+        assert_eq!(parse_string_literal("\"\\110\\145\\154\\154\\157\""), "Hello");
+        assert_eq!(parse_string_literal("\"Hello,\\\n\t  \\ world!\""), "Hello, world!");
     }
 }
