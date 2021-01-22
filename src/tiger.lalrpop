@@ -1,0 +1,114 @@
+use crate::util;
+use crate::ast::{Expr, BinOp, UnOp};
+
+grammar;
+
+match {
+    "," => COMMA,
+    ":" => COLON,
+    ";" => SEMICOLON,
+    "(" => LPAREN,
+    ")" => RPAREN,
+    "[" => LBRACK,
+    "]" => RBRACK,
+    "{" => LBRACE,
+    "}" => RBRACE,
+    "." => DOT,
+    "+" => ADD,
+    "-" => SUB,
+    "*" => MUL,
+    "/" => DIV,
+    "=" => EQ,
+    "<>" => NE,
+    "<" => LT,
+    "<=" => LE,
+    ">" => GT,
+    ">=" => GE,
+    "&" => AND,
+    "|" => OR,
+    "~" => NOT,
+    ":=" => ASSIGN,
+    "array" => ARRAY,
+    "if" => IF,
+    "then" => THEN,
+    "else" => ELSE,
+    "while" => WHILE,
+    "for" => FOR,
+    "to" => TO,
+    "do" => DO,
+    "let" => LET,
+    "in" => IN,
+    "end" => END,
+    "of" => OF,
+    "break" => BREAK,
+    "nil" => NIL,
+    "function" => FUNC,
+    "var" => VAR,
+    "type" => TYPE,
+    r"[A-Za-z][A-Za-z0-9_]*" => NAME,
+    r"[1-9][0-9]*|0" => INTEGER,
+    r#""([:print:]|\\[nt"\\]|\\[0-9]{3}|\\\s+\\)*""# => STRING,
+    r"\s+" => { },
+    r"/\*([^\*]*\*+[^\*/])*([^\*]*\*+|[^\*])*\*/" => { },
+}
+
+pub Expr: Box<Expr> = {
+    #[precedence(level="1")]
+    <l:@L> <literal:INTEGER> <r:@R> => Box::new(Expr::Integer { loc: (l, r), value: util::parse_integer_literal(literal) }),
+    #[precedence(level="1")]
+    <l:@L> <literal:STRING> <r:@R> => Box::new(Expr::String { loc: (l, r), value: util::parse_string_literal(literal) }),
+    #[precedence(level="1")]
+    <l:@L> NIL <r:@R> => Box::new(Expr::Nil { loc: (l, r) }),
+    #[precedence(level="1")]
+    SeqExpr,
+    #[precedence(level="2")]
+    <l:@L> ADD <expr:Expr> <r:@R> => Box::new(Expr::UnOp { loc: (l, r), op: UnOp::Pos, expr }),
+    #[precedence(level="2")]
+    <l:@L> SUB <expr:Expr> <r:@R> => Box::new(Expr::UnOp { loc: (l, r), op: UnOp::Neg, expr }),
+    #[precedence(level="2")]
+    <l:@L> NOT <expr:Expr> <r:@R> => Box::new(Expr::UnOp { loc: (l, r), op: UnOp::Not, expr }),
+    #[precedence(level="3")]
+    #[assoc(side="left")]
+    <l:@L> <lhs:Expr> MUL <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::Mul, rhs }),
+    #[precedence(level="3")]
+    #[assoc(side="left")]
+    <l:@L> <lhs:Expr> DIV <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::Div, rhs }),
+    #[precedence(level="4")]
+    #[assoc(side="left")]
+    <l:@L> <lhs:Expr> ADD <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::Add, rhs }),
+    #[precedence(level="4")]
+    #[assoc(side="left")]
+    <l:@L> <lhs:Expr> SUB <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::Sub, rhs }),
+    #[precedence(level="5")]
+    #[assoc(side="none")]
+    <l:@L> <lhs:Expr> EQ <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::Eq, rhs }),
+    #[precedence(level="5")]
+    #[assoc(side="none")]
+    <l:@L> <lhs:Expr> NE <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::NE, rhs }),
+    #[precedence(level="5")]
+    #[assoc(side="none")]
+    <l:@L> <lhs:Expr> LT <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::LT, rhs }),
+    #[precedence(level="5")]
+    #[assoc(side="none")]
+    <l:@L> <lhs:Expr> LE <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::LE, rhs }),
+    #[precedence(level="5")]
+    #[assoc(side="none")]
+    <l:@L> <lhs:Expr> GT <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::GT, rhs }),
+    #[precedence(level="5")]
+    #[assoc(side="none")]
+    <l:@L> <lhs:Expr> GE <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::GE, rhs }),
+    #[precedence(level="6")]
+    #[assoc(side="left")]
+    <l:@L> <lhs:Expr> AND <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::And, rhs }),
+    #[precedence(level="6")]
+    #[assoc(side="left")]
+    <l:@L> <lhs:Expr> OR <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::Or, rhs }),
+};
+
+SeqExpr: Box<Expr> = <l:@L> LPAREN <mut exprs:ExprList> RPAREN <r:@R> => { let expr = Box::new(exprs.pop().unwrap()); Box::new(Expr::Seq { loc: (l, r), exprs, expr }) };
+
+ExprList: Vec<Expr> = {
+    <l:@L> () <r:@R> => vec![Expr::Empty { loc: (l, r) }],
+    <expr:Expr> => vec![*expr],
+    <expr:Expr> SEMICOLON <mut exprs:ExprList> => { let mut result = vec![*expr]; result.append(&mut exprs); result }
+};

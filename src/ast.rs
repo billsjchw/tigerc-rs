@@ -1,117 +1,146 @@
 #[derive(Debug, PartialEq)]
-pub enum Variable {
-    Identifier {
+pub enum Var {
+    Ident {
+        loc: (usize, usize),
         name: String,
     },
-    Attribute {
-        var: Box<Variable>,
-        attrname: String,
+    Attr {
+        loc: (usize, usize),
+        var: Box<Var>,
+        attr: String,
     },
     Subscript {
-        var: Box<Variable>,
-        expr: Box<Expression>,
+        loc: (usize, usize),
+        var: Box<Var>,
+        idx: Box<Expr>,
     },
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Expression {
-    Variable {
-        var: Box<Variable>,
+pub enum Expr {
+    Var {
+        loc: (usize, usize),
+        var: Box<Var>,
     },
     Integer {
+        loc: (usize, usize),
         value: i64,
     },
     String {
+        loc: (usize, usize),
         value: String,
     },
     Call {
-        funcname: String,
-        args: Vec<Expression>,
+        loc: (usize, usize),
+        func: String,
+        args: Vec<Expr>,
     },
     BinOp {
-        lhs: Box<Expression>,
-        op: BinaryOperator,
-        rhs: Box<Expression>,
+        loc: (usize, usize),
+        lhs: Box<Expr>,
+        op: BinOp,
+        rhs: Box<Expr>,
     },
     UnOp {
-        op: UnaryOperator,
-        expr: Box<Expression>,
+        loc: (usize, usize),
+        op: UnOp,
+        expr: Box<Expr>,
     },
     Record {
-        typename: String,
-        elems: Vec<(String, Expression)>,
+        loc: (usize, usize),
+        typ: String,
+        elems: Vec<(String, Expr)>,
     },
-    Sequence {
-        exprs: Vec<Expression>,
-        expr: Box<Expression>,
+    Seq {
+        loc: (usize, usize),
+        exprs: Vec<Expr>,
+        expr: Box<Expr>,
     },
     Assign {
-        var: Variable,
-        expr: Box<Expression>,
+        loc: (usize, usize),
+        var: Box<Var>,
+        expr: Box<Expr>,
     },
     If {
-        test: Box<Expression>,
-        body: Box<Expression>,
-        orelse: Box<Expression>,
+        loc: (usize, usize),
+        test: Box<Expr>,
+        body: Box<Expr>,
+        orelse: Box<Expr>,
     },
     While {
-        test: Box<Expression>,
-        body: Box<Expression>,
+        loc: (usize, usize),
+        test: Box<Expr>,
+        body: Box<Expr>,
     },
     For {
-        idname: String,
-        low: Box<Expression>,
-        high: Box<Expression>,
-        body: Box<Expression>,
+        loc: (usize, usize),
+        ident: String,
+        low: Box<Expr>,
+        high: Box<Expr>,
+        body: Box<Expr>,
     },
     Let {
-        decs: Vec<Declaration>,
-        body: Box<Expression>,
+        loc: (usize, usize),
+        decs: Vec<Def>,
+        body: Box<Expr>,
     },
     Array {
-        typename: String,
-        size: Box<Expression>,
-        init: Box<Expression>,
+        loc: (usize, usize),
+        typ: String,
+        size: Box<Expr>,
+        init: Box<Expr>,
     },
-    Break,
-    Nil,
-    Unit,
+    Break {
+        loc: (usize, usize),
+    },
+    Nil {
+        loc: (usize, usize),
+    },
+    Empty {
+        loc: (usize, usize),
+    },
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Declaration {
-    Function {
+pub enum Def {
+    Func {
+        loc: (usize, usize),
         name: String,
-        typename: String,
+        typ: String,
         params: Vec<(String, String)>,
-        body: Box<Expression>,
+        body: Box<Expr>,
     },
-    Variable {
+    Var {
+        loc: (usize, usize),
         name: String,
-        typename: Option<String>,
-        init: Box<Expression>,
+        typ: Option<String>,
+        init: Box<Expr>,
     },
     Type {
+        loc: (usize, usize),
         name: String,
-        ty: Box<Type>,
+        typ: Box<Type>,
     },
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Type {
-    Identifier {
-        name: String,
+    Ident {
+        loc: (usize, usize),
+        name: String
     },
     Record {
+        loc: (usize, usize),
         attrs: Vec<(String, String)>,
     },
     Array {
-        typename: String,
+        loc: (usize, usize),
+        typ: String,
     },
 }
 
 #[derive(Debug, PartialEq)]
-pub enum BinaryOperator {
+pub enum BinOp {
     Add,
     Sub,
     Mul,
@@ -127,7 +156,8 @@ pub enum BinaryOperator {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum UnaryOperator {
+pub enum UnOp {
     Pos,
     Neg,
+    Not,
 }
