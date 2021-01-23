@@ -123,4 +123,53 @@ mod tests {
             }),
         );
     }
+
+    #[test]
+    fn test_parse_while_expr() {
+        assert_eq!(
+            parse("while 0 do (1; break;)"),
+            Box::new(Expr::While {
+                loc: (0, 22),
+                test: Box::new(Expr::Integer {
+                    loc: (6, 7),
+                    value: 0,
+                }),
+                body: Box::new(Expr::Seq {
+                    loc: (11, 22),
+                    exprs: vec![
+                        Expr::Integer {
+                            loc: (12, 13),
+                            value: 1,
+                        },
+                        Expr::Break { loc: (15, 20) },
+                    ],
+                    expr: Box::new(Expr::Empty { loc: (21, 21) }),
+                }),
+            }),
+        );
+    }
+
+    #[test]
+    fn test_parse_for_expr() {
+        assert_eq!(
+            parse("for i := 0 to 1 do ()"),
+            Box::new(Expr::For {
+                loc: (0, 21),
+                var: String::from("i"),
+                low: Box::new(Expr::Integer {
+                    loc: (9, 10),
+                    value: 0,
+                }),
+                high: Box::new(Expr::Integer {
+                    loc: (14, 15),
+                    value: 1,
+                }),
+                body: Box::new(Expr::Seq {
+                    loc: (19, 21),
+                    exprs: vec![],
+                    expr: Box::new(Expr::Empty { loc: (20, 20) }),
+                }),
+            }),
+        );
+    }
 }

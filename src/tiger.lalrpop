@@ -45,7 +45,7 @@ match {
     "function" => FUNC,
     "var" => VAR,
     "type" => TYPE,
-    r"[A-Za-z][A-Za-z0-9_]*" => NAME,
+    r"[A-Za-z][A-Za-z0-9_]*" => IDENT,
     r"[1-9][0-9]*|0" => INTEGER,
     r#""([:print:]|\\[nt"\\]|\\[0-9]{3}|\\\s+\\)*""# => STRING,
     r"\s+" => { },
@@ -59,6 +59,8 @@ pub Expr: Box<Expr> = {
     <l:@L> <literal:STRING> <r:@R> => Box::new(Expr::String { loc: (l, r), value: util::parse_string_literal(literal) }),
     #[precedence(level="1")]
     <l:@L> NIL <r:@R> => Box::new(Expr::Nil { loc: (l, r) }),
+    #[precedence(level="1")]
+    <l:@L> BREAK <r:@R> => Box::new(Expr::Break { loc: (l, r) }),
     #[precedence(level="1")]
     SeqExpr,
     #[precedence(level="2")]
@@ -107,6 +109,10 @@ pub Expr: Box<Expr> = {
     <l:@L> IF <test:Expr> THEN <body:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, body, orelse: Box::new(Expr::Empty { loc: (r, r) }) } ),
     #[precedence(level="7")]
     <l:@L> IF <test:Expr> THEN <body:SeqExpr> ELSE <orelse:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, body, orelse } ),
+    #[precedence(level="7")]
+    <l:@L> WHILE <test:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::While { loc: (l, r), test, body }),
+    #[precedence(level="7")]
+    <l:@L> FOR <var:IDENT> ASSIGN <low:Expr> TO <high:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::For { loc: (l, r), var: String::from(var), low, high, body }),
 };
 
 SeqExpr: Box<Expr> = <l:@L> LPAREN <mut exprs:ExprList> RPAREN <r:@R> => { let expr = Box::new(exprs.pop().unwrap()); Box::new(Expr::Seq { loc: (l, r), exprs, expr }) };

@@ -74,7 +74,7 @@ pub enum Expr {
     },
     For {
         loc: (usize, usize),
-        ident: String,
+        var: String,
         low: Box<Expr>,
         high: Box<Expr>,
         body: Box<Expr>,
