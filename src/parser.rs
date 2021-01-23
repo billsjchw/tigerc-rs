@@ -85,4 +85,42 @@ mod tests {
             }),
         );
     }
+
+    #[test]
+    fn test_parse_if_expr() {
+        assert_eq!(
+            parse("if 0 > 1 then (2) else (3)"),
+            Box::new(Expr::If {
+                loc: (0, 26),
+                test: Box::new(Expr::BinOp {
+                    loc: (3, 8),
+                    lhs: Box::new(Expr::Integer {
+                        loc: (3, 4),
+                        value: 0,
+                    }),
+                    op: BinOp::GT,
+                    rhs: Box::new(Expr::Integer {
+                        loc: (7, 8),
+                        value: 1,
+                    }),
+                }),
+                body: Box::new(Expr::Seq {
+                    loc: (14, 17),
+                    exprs: vec![],
+                    expr: Box::new(Expr::Integer {
+                        loc: (15, 16),
+                        value: 2,
+                    }),
+                }),
+                orelse: Box::new(Expr::Seq {
+                    loc: (23, 26),
+                    exprs: vec![],
+                    expr: Box::new(Expr::Integer {
+                        loc: (24, 25),
+                        value: 3,
+                    }),
+                }),
+            }),
+        );
+    }
 }

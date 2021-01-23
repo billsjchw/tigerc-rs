@@ -103,6 +103,10 @@ pub Expr: Box<Expr> = {
     #[precedence(level="6")]
     #[assoc(side="left")]
     <l:@L> <lhs:Expr> OR <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::Or, rhs }),
+    #[precedence(level="7")]
+    <l:@L> IF <test:Expr> THEN <body:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, body, orelse: Box::new(Expr::Empty { loc: (r, r) }) } ),
+    #[precedence(level="7")]
+    <l:@L> IF <test:Expr> THEN <body:SeqExpr> ELSE <orelse:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, body, orelse } ),
 };
 
 SeqExpr: Box<Expr> = <l:@L> LPAREN <mut exprs:ExprList> RPAREN <r:@R> => { let expr = Box::new(exprs.pop().unwrap()); Box::new(Expr::Seq { loc: (l, r), exprs, expr }) };
