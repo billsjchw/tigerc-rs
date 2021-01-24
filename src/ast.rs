@@ -1,26 +1,18 @@
 #[derive(Debug, PartialEq)]
-pub enum Var {
+pub enum Expr {
     Ident {
         loc: (usize, usize),
         name: String,
     },
     Attr {
         loc: (usize, usize),
-        var: Box<Var>,
+        record: Box<Expr>,
         attr: String,
     },
     Subscript {
         loc: (usize, usize),
-        var: Box<Var>,
+        array: Box<Expr>,
         idx: Box<Expr>,
-    },
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Expr {
-    Var {
-        loc: (usize, usize),
-        var: Box<Var>,
     },
     Integer {
         loc: (usize, usize),
@@ -58,7 +50,7 @@ pub enum Expr {
     },
     Assign {
         loc: (usize, usize),
-        var: Box<Var>,
+        var: Box<Expr>,
         expr: Box<Expr>,
     },
     If {
