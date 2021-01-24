@@ -13,43 +13,54 @@ mod tests {
     #[test]
     fn test_parse_arithmetic() {
         assert_eq!(
-            parse("1 + 2 * 3 & 0 < -1"),
+            parse("a + b * c & d[0] < -e.f1_G"),
             Box::new(Expr::BinOp {
-                loc: (0, 18),
+                loc: (0, 26),
                 lhs: Box::new(Expr::BinOp {
                     loc: (0, 9),
-                    lhs: Box::new(Expr::Integer {
+                    lhs: Box::new(Expr::Ident {
                         loc: (0, 1),
-                        value: 1,
+                        name: String::from("a"),
                     }),
                     op: BinOp::Add,
                     rhs: Box::new(Expr::BinOp {
                         loc: (4, 9),
-                        lhs: Box::new(Expr::Integer {
+                        lhs: Box::new(Expr::Ident {
                             loc: (4, 5),
-                            value: 2,
+                            name: String::from("b"),
                         }),
                         op: BinOp::Mul,
-                        rhs: Box::new(Expr::Integer {
+                        rhs: Box::new(Expr::Ident {
                             loc: (8, 9),
-                            value: 3,
+                            name: String::from("c"),
                         }),
                     }),
                 }),
                 op: BinOp::And,
                 rhs: Box::new(Expr::BinOp {
-                    loc: (12, 18),
-                    lhs: Box::new(Expr::Integer {
-                        loc: (12, 13),
-                        value: 0,
+                    loc: (12, 26),
+                    lhs: Box::new(Expr::Index {
+                        loc: (12, 16),
+                        array: Box::new(Expr::Ident {
+                            loc: (12, 13),
+                            name: String::from("d"),
+                        }),
+                        index: Box::new(Expr::Integer {
+                            loc: (14, 15),
+                            value: 0,
+                        }),
                     }),
                     op: BinOp::LT,
                     rhs: Box::new(Expr::UnOp {
-                        loc: (16, 18),
+                        loc: (19, 26),
                         op: UnOp::Neg,
-                        expr: Box::new(Expr::Integer {
-                            loc: (17, 18),
-                            value: 1,
+                        expr: Box::new(Expr::Attr {
+                            loc: (20, 26),
+                            record: Box::new(Expr::Ident {
+                                loc: (20, 21),
+                                name: String::from("e"),
+                            }),
+                            attr: String::from("f1_G"),
                         }),
                     }),
                 }),

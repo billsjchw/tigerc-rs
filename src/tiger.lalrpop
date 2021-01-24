@@ -62,6 +62,12 @@ pub Expr: Box<Expr> = {
     #[precedence(level="1")]
     <l:@L> BREAK <r:@R> => Box::new(Expr::Break { loc: (l, r) }),
     #[precedence(level="1")]
+    <l:@L> <name:IDENT> <r:@R> => Box::new(Expr::Ident { loc: (l, r), name: String::from(name) }),
+    #[precedence(level="1")]
+    <l:@L> <record:Expr> DOT <attr:IDENT> <r:@R> => Box::new( Expr::Attr { loc: (l, r), record, attr: String::from(attr) } ),
+    #[precedence(level="1")]
+    <l:@L> <array:Expr> LBRACK <index:Expr> RBRACK <r:@R> => Box::new( Expr::Index { loc: (l, r), array, index } ),
+    #[precedence(level="1")]
     SeqExpr,
     #[precedence(level="2")]
     <l:@L> ADD <expr:Expr> <r:@R> => Box::new(Expr::UnOp { loc: (l, r), op: UnOp::Pos, expr }),

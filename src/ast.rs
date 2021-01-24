@@ -9,10 +9,10 @@ pub enum Expr {
         record: Box<Expr>,
         attr: String,
     },
-    Subscript {
+    Index {
         loc: (usize, usize),
         array: Box<Expr>,
-        idx: Box<Expr>,
+        index: Box<Expr>,
     },
     Integer {
         loc: (usize, usize),
