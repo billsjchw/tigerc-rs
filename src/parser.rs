@@ -224,9 +224,9 @@ mod tests {
     #[test]
     fn test_parse_record_expr() {
         assert_eq!(
-            parse("Student {id: 1, age: 20}"),
+            parse("Student {id: 1, name: \"tom\"}"),
             Box::new(Expr::Record {
-                loc: (0, 24),
+                loc: (0, 28),
                 typ: String::from("Student"),
                 elems: vec![
                     (
@@ -237,10 +237,10 @@ mod tests {
                         },
                     ),
                     (
-                        String::from("age"),
-                        Expr::Integer {
-                            loc: (21, 23),
-                            value: 20,
+                        String::from("name"),
+                        Expr::String {
+                            loc: (22, 27),
+                            value: String::from("tom"),
                         },
                     ),
                 ],
