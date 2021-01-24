@@ -2,7 +2,7 @@
 pub enum Expr {
     Ident {
         loc: (usize, usize),
-        name: String,
+        ident: String,
     },
     Attr {
         loc: (usize, usize),
@@ -73,7 +73,7 @@ pub enum Expr {
     },
     Let {
         loc: (usize, usize),
-        decs: Vec<Def>,
+        defs: Vec<Def>,
         body: Box<Expr>,
     },
     Array {
@@ -97,20 +97,20 @@ pub enum Expr {
 pub enum Def {
     Func {
         loc: (usize, usize),
-        name: String,
-        typ: String,
+        ident: String,
+        typ: Option<String>,
         params: Vec<(String, String)>,
         body: Box<Expr>,
     },
     Var {
         loc: (usize, usize),
-        name: String,
+        ident: String,
         typ: Option<String>,
         init: Box<Expr>,
     },
     Type {
         loc: (usize, usize),
-        name: String,
+        ident: String,
         typ: Box<Type>,
     },
 }
@@ -119,7 +119,7 @@ pub enum Def {
 pub enum Type {
     Ident {
         loc: (usize, usize),
-        name: String
+        ident: String
     },
     Record {
         loc: (usize, usize),

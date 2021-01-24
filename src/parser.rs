@@ -8,7 +8,7 @@ pub fn parse(prog: &str) -> Box<Expr> {
 #[cfg(test)]
 mod tests {
     use super::parse;
-    use crate::ast::{BinOp, Expr, UnOp};
+    use crate::ast::{BinOp, Expr, UnOp, Def};
 
     #[test]
     fn test_parse_arithmetic() {
@@ -20,19 +20,19 @@ mod tests {
                     loc: (0, 9),
                     lhs: Box::new(Expr::Ident {
                         loc: (0, 1),
-                        name: String::from("a"),
+                        ident: String::from("a"),
                     }),
                     op: BinOp::Add,
                     rhs: Box::new(Expr::BinOp {
                         loc: (4, 9),
                         lhs: Box::new(Expr::Ident {
                             loc: (4, 5),
-                            name: String::from("b"),
+                            ident: String::from("b"),
                         }),
                         op: BinOp::Mul,
                         rhs: Box::new(Expr::Ident {
                             loc: (8, 9),
-                            name: String::from("c"),
+                            ident: String::from("c"),
                         }),
                     }),
                 }),
@@ -43,7 +43,7 @@ mod tests {
                         loc: (12, 16),
                         array: Box::new(Expr::Ident {
                             loc: (12, 13),
-                            name: String::from("d"),
+                            ident: String::from("d"),
                         }),
                         index: Box::new(Expr::Integer {
                             loc: (14, 15),
@@ -58,7 +58,7 @@ mod tests {
                             loc: (20, 26),
                             record: Box::new(Expr::Ident {
                                 loc: (20, 21),
-                                name: String::from("e"),
+                                ident: String::from("e"),
                             }),
                             attr: String::from("f1_G"),
                         }),
@@ -181,13 +181,13 @@ mod tests {
                         loc: (20, 30),
                         var: Box::new(Expr::Ident {
                             loc: (20, 21),
-                            name: String::from("a"),
+                            ident: String::from("a"),
                         }),
                         expr: Box::new(Expr::BinOp {
                             loc: (25, 30),
                             lhs: Box::new(Expr::Ident {
                                 loc: (25, 26),
-                                name: String::from("a"),
+                                ident: String::from("a"),
                             }),
                             op: BinOp::Mul,
                             rhs: Box::new(Expr::Integer {
@@ -244,6 +244,37 @@ mod tests {
                         },
                     ),
                 ],
+            }),
+        );
+    }
+
+    #[test]
+    fn test_parse_let_expr() {
+        assert_eq!(
+            parse("let var i := 0 in ~i end"),
+            Box::new(Expr::Let {
+                loc: (0, 24),
+                defs: vec![Def::Var {
+                    loc: (4, 14),
+                    ident: String::from("i"),
+                    typ: None,
+                    init: Box::new(Expr::Integer {
+                        loc: (13, 14),
+                        value: 0,
+                    }),
+                }],
+                body: Box::new(Expr::Seq {
+                    loc: (18, 20),
+                    exprs: vec![],
+                    expr: Box::new(Expr::UnOp {
+                        loc: (18, 20),
+                        op: UnOp::Not,
+                        expr: Box::new(Expr::Ident {
+                            loc: (19, 20),
+                            ident: String::from("i"),
+                        }),
+                    }),
+                }),
             }),
         );
     }
