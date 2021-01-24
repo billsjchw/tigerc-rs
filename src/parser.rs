@@ -163,9 +163,9 @@ mod tests {
     #[test]
     fn test_parse_for_expr() {
         assert_eq!(
-            parse("for i := 0 to 1 do ()"),
+            parse("for i := 0 to 1 do (a := a * 2;)"),
             Box::new(Expr::For {
-                loc: (0, 21),
+                loc: (0, 32),
                 var: String::from("i"),
                 low: Box::new(Expr::Integer {
                     loc: (9, 10),
@@ -176,10 +176,74 @@ mod tests {
                     value: 1,
                 }),
                 body: Box::new(Expr::Seq {
-                    loc: (19, 21),
-                    exprs: vec![],
-                    expr: Box::new(Expr::Empty { loc: (20, 20) }),
+                    loc: (19, 32),
+                    exprs: vec![Expr::Assign {
+                        loc: (20, 30),
+                        var: Box::new(Expr::Ident {
+                            loc: (20, 21),
+                            name: String::from("a"),
+                        }),
+                        expr: Box::new(Expr::BinOp {
+                            loc: (25, 30),
+                            lhs: Box::new(Expr::Ident {
+                                loc: (25, 26),
+                                name: String::from("a"),
+                            }),
+                            op: BinOp::Mul,
+                            rhs: Box::new(Expr::Integer {
+                                loc: (29, 30),
+                                value: 2,
+                            }),
+                        }),
+                    }],
+                    expr: Box::new(Expr::Empty { loc: (31, 31) }),
                 }),
+            }),
+        );
+    }
+
+    #[test]
+    fn test_parse_array_expr() {
+        assert_eq!(
+            parse("IntArray {0; 3}"),
+            Box::new(Expr::Array {
+                loc: (0, 15),
+                typ: String::from("IntArray"),
+                size: Box::new(Expr::Integer {
+                    loc: (13, 14),
+                    value: 3,
+                }),
+                init: Box::new(Expr::Integer {
+                    loc: (10, 11),
+                    value: 0,
+                }),
+            }),
+        );
+    }
+
+    #[test]
+    fn test_parse_record_expr() {
+        assert_eq!(
+            parse("Student {id: 1, age: 20}"),
+            Box::new(Expr::Record {
+                loc: (0, 24),
+                typ: String::from("Student"),
+                elems: vec![
+                    (
+                        String::from("id"),
+                        Expr::Integer {
+                            loc: (13, 14),
+                            value: 1,
+                        },
+                    ),
+                    (
+                        String::from("age"),
+                        Expr::Integer {
+                            loc: (21, 23),
+                            value: 20,
+                        },
+                    ),
+                ],
             }),
         );
     }
