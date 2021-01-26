@@ -260,11 +260,12 @@ mod tests {
                      function zero() = (0)\n\
                      function add_one(x: int): int = (x + 1)\n\
                  in\n\
-                     0\n\
+                     0;\n\
+                     add_one(i)\n\
                  end\n"
             ),
             Box::new(Expr::Let {
-                loc: (0, 177),
+                loc: (0, 189),
                 defs: vec![
                     Def::Var {
                         loc: (4, 14),
@@ -341,11 +342,18 @@ mod tests {
                     },
                 ],
                 body: Box::new(Expr::Seq {
-                    loc: (172, 173),
-                    exprs: vec![],
-                    expr: Box::new(Expr::Integer {
+                    loc: (172, 185),
+                    exprs: vec![Expr::Integer {
                         loc: (172, 173),
                         value: 0,
+                    }],
+                    expr: Box::new(Expr::Call {
+                        loc: (175, 185),
+                        func: String::from("add_one"),
+                        args: vec![Expr::Ident {
+                            loc: (183, 184),
+                            ident: String::from("i"),
+                        }],
                     }),
                 }),
             }),

@@ -72,6 +72,8 @@ pub Expr: Box<Expr> = {
     #[precedence(level="1")]
     <l:@L> <typ:IDENT> LBRACE <elems:ExprBindingList> RBRACE <r:@R> => Box::new(Expr::Record { loc: (l, r), typ: String::from(typ), elems }),
     #[precedence(level="1")]
+    <l:@L> <func:IDENT> LPAREN <args:ArgumentList> RPAREN <r:@R> => Box::new(Expr::Call { loc: (l, r), func: String::from(func), args }),
+    #[precedence(level="1")]
     SeqExpr,
     #[precedence(level="2")]
     <l:@L> ADD <expr:Expr> <r:@R> => Box::new(Expr::UnOp { loc: (l, r), op: UnOp::Pos, expr }),
@@ -173,4 +175,10 @@ TypeBindingList: Vec<(String, String)> = {
     () => vec![],
     <binding:TypeBinding> => vec![binding],
     <binding:TypeBinding> COMMA <mut bindings:TypeBindingList> => { bindings.insert(0, binding); bindings }
+};
+
+ArgumentList: Vec<Expr> = {
+    () => vec![],
+    <arg:Expr> => vec![*arg],
+    <arg:Expr> COMMA <mut args:ArgumentList> => { let mut result = vec![*arg]; result.append(&mut args); result },
 };
