@@ -8,7 +8,7 @@ pub fn parse(prog: &str) -> Box<Expr> {
 #[cfg(test)]
 mod tests {
     use super::parse;
-    use crate::ast::{BinOp, Expr, UnOp, Def};
+    use crate::ast::{BinOp, Def, Expr, Type, UnOp};
 
     #[test]
     fn test_parse_arithmetic() {
@@ -251,28 +251,101 @@ mod tests {
     #[test]
     fn test_parse_let_expr() {
         assert_eq!(
-            parse("let var i := 0 in ~i end"),
+            parse(
+                "let\n\
+                     var i := 0\n\
+                     var s: string := \"test\"\n\
+                     type IntArray = array of int\n\
+                     type Student = {id: int, name: string}\n\
+                     function zero() = (0)\n\
+                     function add_one(x: int): int = (x + 1)\n\
+                 in\n\
+                     0\n\
+                 end\n"
+            ),
             Box::new(Expr::Let {
-                loc: (0, 24),
-                defs: vec![Def::Var {
-                    loc: (4, 14),
-                    ident: String::from("i"),
-                    typ: None,
-                    init: Box::new(Expr::Integer {
-                        loc: (13, 14),
-                        value: 0,
-                    }),
-                }],
-                body: Box::new(Expr::Seq {
-                    loc: (18, 20),
-                    exprs: vec![],
-                    expr: Box::new(Expr::UnOp {
-                        loc: (18, 20),
-                        op: UnOp::Not,
-                        expr: Box::new(Expr::Ident {
-                            loc: (19, 20),
-                            ident: String::from("i"),
+                loc: (0, 177),
+                defs: vec![
+                    Def::Var {
+                        loc: (4, 14),
+                        ident: String::from("i"),
+                        typ: None,
+                        init: Box::new(Expr::Integer {
+                            loc: (13, 14),
+                            value: 0,
                         }),
+                    },
+                    Def::Var {
+                        loc: (15, 38),
+                        ident: String::from("s"),
+                        typ: Some(String::from("string")),
+                        init: Box::new(Expr::String {
+                            loc: (32, 38),
+                            value: String::from("test"),
+                        }),
+                    },
+                    Def::Type {
+                        loc: (39, 67),
+                        ident: String::from("IntArray"),
+                        typ: Box::new(Type::Array {
+                            loc: (55, 67),
+                            typ: String::from("int"),
+                        }),
+                    },
+                    Def::Type {
+                        loc: (68, 106),
+                        ident: String::from("Student"),
+                        typ: Box::new(Type::Record {
+                            loc: (83, 106),
+                            attrs: vec![
+                                (String::from("id"), String::from("int")),
+                                (String::from("name"), String::from("string")),
+                            ],
+                        }),
+                    },
+                    Def::Func {
+                        loc: (107, 128),
+                        ident: String::from("zero"),
+                        typ: None,
+                        params: vec![],
+                        body: Box::new(Expr::Seq {
+                            loc: (125, 128),
+                            exprs: vec![],
+                            expr: Box::new(Expr::Integer {
+                                loc: (126, 127),
+                                value: 0,
+                            }),
+                        }),
+                    },
+                    Def::Func {
+                        loc: (129, 168),
+                        ident: String::from("add_one"),
+                        typ: Some(String::from("int")),
+                        params: vec![(String::from("x"), String::from("int"))],
+                        body: Box::new(Expr::Seq {
+                            loc: (161, 168),
+                            exprs: vec![],
+                            expr: Box::new(Expr::BinOp {
+                                loc: (162, 167),
+                                lhs: Box::new(Expr::Ident {
+                                    loc: (162, 163),
+                                    ident: String::from("x"),
+                                }),
+                                op: BinOp::Add,
+                                rhs: Box::new(Expr::Integer {
+                                    loc: (166, 167),
+                                    value: 1,
+                                }),
+                            }),
+                        }),
+                    },
+                ],
+                body: Box::new(Expr::Seq {
+                    loc: (172, 173),
+                    exprs: vec![],
+                    expr: Box::new(Expr::Integer {
+                        loc: (172, 173),
+                        value: 0,
                     }),
                 }),
             }),
