@@ -1,8 +1,8 @@
 use crate::ast::Expr;
 use crate::tiger;
 
-pub fn parse(prog: &str) -> Box<Expr> {
-    tiger::ExprParser::new().parse(prog).unwrap()
+pub fn parse(prog: &str) -> Result<Box<Expr>, String> {
+    Ok(tiger::ExprParser::new().parse(prog).map_err(|err| err.to_string())?)
 }
 
 #[cfg(test)]
@@ -13,7 +13,7 @@ mod tests {
     #[test]
     fn test_parse_arithmetic() {
         assert_eq!(
-            parse("a + b * c & d[e + f] < -g.h1_J"),
+            parse("a + b * c & d[e + f] < -g.h1_J").unwrap(),
             Box::new(Expr::BinOp {
                 loc: (0, 30),
                 lhs: Box::new(Expr::BinOp {
@@ -79,7 +79,7 @@ mod tests {
     #[test]
     fn test_parse_seq_expr() {
         assert_eq!(
-            parse("(1; 2 + 3;)"),
+            parse("(1; 2 + 3;)").unwrap(),
             Box::new(Expr::Seq {
                 loc: (0, 11),
                 exprs: vec![
@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn test_parse_if_expr() {
         assert_eq!(
-            parse("if 0 > 1 then (2) else (3)"),
+            parse("if 0 > 1 then (2) else (3)").unwrap(),
             Box::new(Expr::If {
                 loc: (0, 26),
                 test: Box::new(Expr::BinOp {
@@ -146,7 +146,7 @@ mod tests {
     #[test]
     fn test_parse_while_expr() {
         assert_eq!(
-            parse("while 0 do (1; break;)"),
+            parse("while 0 do (1; break;)").unwrap(),
             Box::new(Expr::While {
                 loc: (0, 22),
                 test: Box::new(Expr::Integer {
@@ -171,7 +171,7 @@ mod tests {
     #[test]
     fn test_parse_for_expr() {
         assert_eq!(
-            parse("for i := 0 to 1 do (a := a * 2; continue;)"),
+            parse("for i := 0 to 1 do (a := a * 2; continue;)").unwrap(),
             Box::new(Expr::For {
                 loc: (0, 42),
                 cnt: String::from("i"),
@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn test_parse_array_expr() {
         assert_eq!(
-            parse("IntArray {0; 3}"),
+            parse("IntArray {0; 3}").unwrap(),
             Box::new(Expr::Array {
                 loc: (0, 15),
                 type_: String::from("IntArray"),
@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn test_parse_record_expr() {
         assert_eq!(
-            parse("Student {id: 1, name: \"tom\"}"),
+            parse("Student {id: 1, name: \"tom\"}").unwrap(),
             Box::new(Expr::Record {
                 loc: (0, 28),
                 type_: String::from("Student"),
@@ -275,7 +275,7 @@ mod tests {
                      0;\n\
                      add_one(i)\n\
                  end\n"
-            ),
+            ).unwrap(),
             Box::new(Expr::Let {
                 loc: (0, 189),
                 defs: vec![
