@@ -67,6 +67,7 @@ pub enum Expr {
     For {
         loc: (usize, usize),
         cnt: String,
+        esc: bool,
         low: Box<Expr>,
         high: Box<Expr>,
         body: Box<Expr>,
@@ -108,6 +109,7 @@ pub enum Def {
     Var {
         loc: (usize, usize),
         ident: String,
+        esc: bool,
         type_: Option<String>,
         init: Box<Expr>,
     },

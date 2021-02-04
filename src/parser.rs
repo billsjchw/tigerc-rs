@@ -175,6 +175,7 @@ mod tests {
             Box::new(Expr::For {
                 loc: (0, 42),
                 cnt: String::from("i"),
+                esc: true,
                 low: Box::new(Expr::Integer {
                     loc: (9, 10),
                     value: 0,
@@ -281,6 +282,7 @@ mod tests {
                     Def::Var {
                         loc: (4, 14),
                         ident: String::from("i"),
+                        esc: true,
                         type_: None,
                         init: Box::new(Expr::Integer {
                             loc: (13, 14),
@@ -290,6 +292,7 @@ mod tests {
                     Def::Var {
                         loc: (15, 38),
                         ident: String::from("s"),
+                        esc: true,
                         type_: Some(String::from("string")),
                         init: Box::new(Expr::String {
                             loc: (32, 38),

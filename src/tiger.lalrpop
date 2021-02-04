@@ -118,14 +118,14 @@ AtomExpr: Box<Expr> = {
     <l:@L> IF <test:Expr> THEN <then:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, then, orelse: Box::new(Expr::Empty { loc: (r, r) }) } ),
     <l:@L> IF <test:Expr> THEN <then:SeqExpr> ELSE <orelse:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, then, orelse } ),
     <l:@L> WHILE <test:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::While { loc: (l, r), test, body }),
-    <l:@L> FOR <cnt:IDENT> ASSIGN <low:Expr> TO <high:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::For { loc: (l, r), cnt: String::from(cnt), low, high, body }),
+    <l:@L> FOR <cnt:IDENT> ASSIGN <low:Expr> TO <high:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::For { loc: (l, r), cnt: String::from(cnt), esc: true, low, high, body }),
     <l:@L> LET <defs:DefList> IN <body:LetExprBody> END <r:@R> => Box::new(Expr::Let { loc: (l, r), defs, body }),
     SeqExpr,
 };
 
 Def: Box<Def> = {
-    <l:@L> VAR <ident:IDENT> ASSIGN <init:Expr> <r:@R> => Box::new(Def::Var { loc: (l, r), ident: String::from(ident), type_: None, init }),
-    <l:@L> VAR <ident:IDENT> COLON <type_:IDENT> ASSIGN <init:Expr> <r:@R> => Box::new(Def::Var { loc: (l, r), ident: String::from(ident), type_: Some(String::from(type_)), init }),
+    <l:@L> VAR <ident:IDENT> ASSIGN <init:Expr> <r:@R> => Box::new(Def::Var { loc: (l, r), ident: String::from(ident), esc: true, type_: None, init }),
+    <l:@L> VAR <ident:IDENT> COLON <type_:IDENT> ASSIGN <init:Expr> <r:@R> => Box::new(Def::Var { loc: (l, r), ident: String::from(ident), esc: true, type_: Some(String::from(type_)), init }),
     <l:@L> TYPE <ident:IDENT> EQ <type_:Type> <r:@R> => Box::new(Def::Type { loc: (l, r), ident: String::from(ident), type_ }),
     <l:@L> FUNC <ident:IDENT> LPAREN <params:TypeBindingList> RPAREN EQ <body:SeqExpr> <r:@R> => Box::new(Def::Func { loc: (l, r), ident: String::from(ident), ret: None, params, body }),
     <l:@L> FUNC <ident:IDENT> LPAREN <params:TypeBindingList> RPAREN COLON <ret:IDENT> EQ <body:SeqExpr> <r:@R> => Box::new(Def::Func { loc: (l, r), ident: String::from(ident), ret: Some(String::from(ret)), params, body }),
