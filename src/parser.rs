@@ -1,8 +1,8 @@
-use crate::ast::Expr;
+use crate::{ast::Expr, error::Error};
 use crate::tiger;
 
-pub fn parse(prog: &str) -> Result<Box<Expr>, String> {
-    Ok(tiger::ExprParser::new().parse(prog).map_err(|err| err.to_string())?)
+pub fn parse(prog: &str) -> Result<Box<Expr>, Error> {
+    Ok(tiger::ExprParser::new().parse(prog).map_err(|err| Error::ParsingError(err.to_string()))?)
 }
 
 #[cfg(test)]
