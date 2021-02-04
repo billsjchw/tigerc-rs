@@ -123,7 +123,7 @@ mod tests {
                         value: 1,
                     }),
                 }),
-                body: Box::new(Expr::Seq {
+                then: Box::new(Expr::Seq {
                     loc: (14, 17),
                     exprs: vec![],
                     expr: Box::new(Expr::Integer {
@@ -171,10 +171,10 @@ mod tests {
     #[test]
     fn test_parse_for_expr() {
         assert_eq!(
-            parse("for i := 0 to 1 do (a := a * 2;)"),
+            parse("for i := 0 to 1 do (a := a * 2; continue;)"),
             Box::new(Expr::For {
-                loc: (0, 32),
-                var: String::from("i"),
+                loc: (0, 42),
+                cnt: String::from("i"),
                 low: Box::new(Expr::Integer {
                     loc: (9, 10),
                     value: 0,
@@ -184,27 +184,30 @@ mod tests {
                     value: 1,
                 }),
                 body: Box::new(Expr::Seq {
-                    loc: (19, 32),
-                    exprs: vec![Expr::Assign {
-                        loc: (20, 30),
-                        var: Box::new(Expr::Ident {
-                            loc: (20, 21),
-                            ident: String::from("a"),
-                        }),
-                        expr: Box::new(Expr::BinOp {
-                            loc: (25, 30),
-                            lhs: Box::new(Expr::Ident {
-                                loc: (25, 26),
+                    loc: (19, 42),
+                    exprs: vec![
+                        Expr::Assign {
+                            loc: (20, 30),
+                            lvalue: Box::new(Expr::Ident {
+                                loc: (20, 21),
                                 ident: String::from("a"),
                             }),
-                            op: BinOp::Mul,
-                            rhs: Box::new(Expr::Integer {
-                                loc: (29, 30),
-                                value: 2,
+                            rvalue: Box::new(Expr::BinOp {
+                                loc: (25, 30),
+                                lhs: Box::new(Expr::Ident {
+                                    loc: (25, 26),
+                                    ident: String::from("a"),
+                                }),
+                                op: BinOp::Mul,
+                                rhs: Box::new(Expr::Integer {
+                                    loc: (29, 30),
+                                    value: 2,
+                                }),
                             }),
-                        }),
-                    }],
-                    expr: Box::new(Expr::Empty { loc: (31, 31) }),
+                        },
+                        Expr::Continue { loc: (32, 40) },
+                    ],
+                    expr: Box::new(Expr::Empty { loc: (41, 41) }),
                 }),
             }),
         );
@@ -216,7 +219,7 @@ mod tests {
             parse("IntArray {0; 3}"),
             Box::new(Expr::Array {
                 loc: (0, 15),
-                typ: String::from("IntArray"),
+                type_: String::from("IntArray"),
                 size: Box::new(Expr::Integer {
                     loc: (13, 14),
                     value: 3,
@@ -235,7 +238,7 @@ mod tests {
             parse("Student {id: 1, name: \"tom\"}"),
             Box::new(Expr::Record {
                 loc: (0, 28),
-                typ: String::from("Student"),
+                type_: String::from("Student"),
                 elems: vec![
                     (
                         String::from("id"),
@@ -278,7 +281,7 @@ mod tests {
                     Def::Var {
                         loc: (4, 14),
                         ident: String::from("i"),
-                        typ: None,
+                        type_: None,
                         init: Box::new(Expr::Integer {
                             loc: (13, 14),
                             value: 0,
@@ -287,7 +290,7 @@ mod tests {
                     Def::Var {
                         loc: (15, 38),
                         ident: String::from("s"),
-                        typ: Some(String::from("string")),
+                        type_: Some(String::from("string")),
                         init: Box::new(Expr::String {
                             loc: (32, 38),
                             value: String::from("test"),
@@ -296,15 +299,15 @@ mod tests {
                     Def::Type {
                         loc: (39, 67),
                         ident: String::from("IntArray"),
-                        typ: Box::new(Type::Array {
+                        type_: Box::new(Type::Array {
                             loc: (55, 67),
-                            typ: String::from("int"),
+                            elem: String::from("int"),
                         }),
                     },
                     Def::Type {
                         loc: (68, 106),
                         ident: String::from("Student"),
-                        typ: Box::new(Type::Record {
+                        type_: Box::new(Type::Record {
                             loc: (83, 106),
                             attrs: vec![
                                 (String::from("id"), String::from("int")),
@@ -315,7 +318,7 @@ mod tests {
                     Def::Func {
                         loc: (107, 128),
                         ident: String::from("zero"),
-                        typ: None,
+                        ret: None,
                         params: vec![],
                         body: Box::new(Expr::Seq {
                             loc: (125, 128),
@@ -329,7 +332,7 @@ mod tests {
                     Def::Func {
                         loc: (129, 168),
                         ident: String::from("add_one"),
-                        typ: Some(String::from("int")),
+                        ret: Some(String::from("int")),
                         params: vec![(String::from("x"), String::from("int"))],
                         body: Box::new(Expr::Seq {
                             loc: (161, 168),
@@ -357,7 +360,7 @@ mod tests {
                     }],
                     expr: Box::new(Expr::Call {
                         loc: (175, 185),
-                        func: String::from("add_one"),
+                        callee: String::from("add_one"),
                         args: vec![Expr::Ident {
                             loc: (183, 184),
                             ident: String::from("i"),

@@ -24,7 +24,7 @@ pub enum Expr {
     },
     Call {
         loc: (usize, usize),
-        func: String,
+        callee: String,
         args: Vec<Expr>,
     },
     BinOp {
@@ -40,7 +40,7 @@ pub enum Expr {
     },
     Record {
         loc: (usize, usize),
-        typ: String,
+        type_: String,
         elems: Vec<(String, Expr)>,
     },
     Seq {
@@ -50,13 +50,13 @@ pub enum Expr {
     },
     Assign {
         loc: (usize, usize),
-        var: Box<Expr>,
-        expr: Box<Expr>,
+        lvalue: Box<Expr>,
+        rvalue: Box<Expr>,
     },
     If {
         loc: (usize, usize),
         test: Box<Expr>,
-        body: Box<Expr>,
+        then: Box<Expr>,
         orelse: Box<Expr>,
     },
     While {
@@ -66,7 +66,7 @@ pub enum Expr {
     },
     For {
         loc: (usize, usize),
-        var: String,
+        cnt: String,
         low: Box<Expr>,
         high: Box<Expr>,
         body: Box<Expr>,
@@ -78,11 +78,14 @@ pub enum Expr {
     },
     Array {
         loc: (usize, usize),
-        typ: String,
+        type_: String,
         size: Box<Expr>,
         init: Box<Expr>,
     },
     Break {
+        loc: (usize, usize),
+    },
+    Continue {
         loc: (usize, usize),
     },
     Nil {
@@ -98,28 +101,28 @@ pub enum Def {
     Func {
         loc: (usize, usize),
         ident: String,
-        typ: Option<String>,
+        ret: Option<String>,
         params: Vec<(String, String)>,
         body: Box<Expr>,
     },
     Var {
         loc: (usize, usize),
         ident: String,
-        typ: Option<String>,
+        type_: Option<String>,
         init: Box<Expr>,
     },
     Type {
         loc: (usize, usize),
         ident: String,
-        typ: Box<Type>,
+        type_: Box<Type>,
     },
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Type {
-    Ident {
+    Alias {
         loc: (usize, usize),
-        ident: String
+        type_: String,
     },
     Record {
         loc: (usize, usize),
@@ -127,7 +130,7 @@ pub enum Type {
     },
     Array {
         loc: (usize, usize),
-        typ: String,
+        elem: String,
     },
 }
 

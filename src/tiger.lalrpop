@@ -41,6 +41,7 @@ match {
     "end" => END,
     "of" => OF,
     "break" => BREAK,
+    "continue" => CONTINUE,
     "nil" => NIL,
     "function" => FUNC,
     "var" => VAR,
@@ -99,7 +100,7 @@ pub Expr: Box<Expr> = {
     <l:@L> <lhs:Expr> OR <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::Or, rhs }),
     #[precedence(level="7")]
     #[assoc(side="none")]
-    <l:@L> <var:Expr> ASSIGN <expr:Expr> <r:@R> => Box::new(Expr::Assign { loc: (l, r), var, expr }),
+    <l:@L> <lvalue:Expr> ASSIGN <rvalue:Expr> <r:@R> => Box::new(Expr::Assign { loc: (l, r), lvalue, rvalue }),
 };
 
 AtomExpr: Box<Expr> = {
@@ -107,26 +108,27 @@ AtomExpr: Box<Expr> = {
     <l:@L> <literal:STRING> <r:@R> => Box::new(Expr::String { loc: (l, r), value: util::parse_string_literal(literal) }),
     <l:@L> NIL <r:@R> => Box::new(Expr::Nil { loc: (l, r) }),
     <l:@L> BREAK <r:@R> => Box::new(Expr::Break { loc: (l, r) }),
+    <l:@L> CONTINUE <r:@R> => Box::new(Expr::Continue { loc: (l, r) }),
     <l:@L> <ident:IDENT> <r:@R> => Box::new(Expr::Ident { loc: (l, r), ident: String::from(ident) }),
     <l:@L> <record:AtomExpr> DOT <attr:IDENT> <r:@R> => Box::new( Expr::Attr { loc: (l, r), record, attr: String::from(attr) } ),
     <l:@L> <array:AtomExpr> LBRACK <index:Expr> RBRACK <r:@R> => Box::new( Expr::Index { loc: (l, r), array, index } ),
-    <l:@L> <typ:IDENT> LBRACE <init:Expr> SEMICOLON <size:Expr> RBRACE <r:@R> => Box::new(Expr::Array { loc: (l, r), typ: String::from(typ), size, init }),
-    <l:@L> <typ:IDENT> LBRACE <elems:ExprBindingList> RBRACE <r:@R> => Box::new(Expr::Record { loc: (l, r), typ: String::from(typ), elems }),
-    <l:@L> <func:IDENT> LPAREN <args:ArgumentList> RPAREN <r:@R> => Box::new(Expr::Call { loc: (l, r), func: String::from(func), args }),
-    <l:@L> IF <test:Expr> THEN <body:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, body, orelse: Box::new(Expr::Empty { loc: (r, r) }) } ),
-    <l:@L> IF <test:Expr> THEN <body:SeqExpr> ELSE <orelse:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, body, orelse } ),
+    <l:@L> <type_:IDENT> LBRACE <init:Expr> SEMICOLON <size:Expr> RBRACE <r:@R> => Box::new(Expr::Array { loc: (l, r), type_: String::from(type_), size, init }),
+    <l:@L> <type_:IDENT> LBRACE <elems:ExprBindingList> RBRACE <r:@R> => Box::new(Expr::Record { loc: (l, r), type_: String::from(type_), elems }),
+    <l:@L> <callee:IDENT> LPAREN <args:ArgumentList> RPAREN <r:@R> => Box::new(Expr::Call { loc: (l, r), callee: String::from(callee), args }),
+    <l:@L> IF <test:Expr> THEN <then:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, then, orelse: Box::new(Expr::Empty { loc: (r, r) }) } ),
+    <l:@L> IF <test:Expr> THEN <then:SeqExpr> ELSE <orelse:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, then, orelse } ),
     <l:@L> WHILE <test:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::While { loc: (l, r), test, body }),
-    <l:@L> FOR <var:IDENT> ASSIGN <low:Expr> TO <high:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::For { loc: (l, r), var: String::from(var), low, high, body }),
+    <l:@L> FOR <cnt:IDENT> ASSIGN <low:Expr> TO <high:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::For { loc: (l, r), cnt: String::from(cnt), low, high, body }),
     <l:@L> LET <defs:DefList> IN <body:LetExprBody> END <r:@R> => Box::new(Expr::Let { loc: (l, r), defs, body }),
     SeqExpr,
 };
 
 Def: Box<Def> = {
-    <l:@L> VAR <ident:IDENT> ASSIGN <init:Expr> <r:@R> => Box::new(Def::Var { loc: (l, r), ident: String::from(ident), typ: None, init }),
-    <l:@L> VAR <ident:IDENT> COLON <typ:IDENT> ASSIGN <init:Expr> <r:@R> => Box::new(Def::Var { loc: (l, r), ident: String::from(ident), typ: Some(String::from(typ)), init }),
-    <l:@L> TYPE <ident:IDENT> EQ <typ:Type> <r:@R> => Box::new(Def::Type { loc: (l, r), ident: String::from(ident), typ }),
-    <l:@L> FUNC <ident:IDENT> LPAREN <params:TypeBindingList> RPAREN EQ <body:SeqExpr> <r:@R> => Box::new(Def::Func { loc: (l, r), ident: String::from(ident), typ: None, params, body }),
-    <l:@L> FUNC <ident:IDENT> LPAREN <params:TypeBindingList> RPAREN COLON <typ:IDENT> EQ <body:SeqExpr> <r:@R> => Box::new(Def::Func { loc: (l, r), ident: String::from(ident), typ: Some(String::from(typ)), params, body }),
+    <l:@L> VAR <ident:IDENT> ASSIGN <init:Expr> <r:@R> => Box::new(Def::Var { loc: (l, r), ident: String::from(ident), type_: None, init }),
+    <l:@L> VAR <ident:IDENT> COLON <type_:IDENT> ASSIGN <init:Expr> <r:@R> => Box::new(Def::Var { loc: (l, r), ident: String::from(ident), type_: Some(String::from(type_)), init }),
+    <l:@L> TYPE <ident:IDENT> EQ <type_:Type> <r:@R> => Box::new(Def::Type { loc: (l, r), ident: String::from(ident), type_ }),
+    <l:@L> FUNC <ident:IDENT> LPAREN <params:TypeBindingList> RPAREN EQ <body:SeqExpr> <r:@R> => Box::new(Def::Func { loc: (l, r), ident: String::from(ident), ret: None, params, body }),
+    <l:@L> FUNC <ident:IDENT> LPAREN <params:TypeBindingList> RPAREN COLON <ret:IDENT> EQ <body:SeqExpr> <r:@R> => Box::new(Def::Func { loc: (l, r), ident: String::from(ident), ret: Some(String::from(ret)), params, body }),
 };
 
 DefList: Vec<Def> = {
@@ -135,8 +137,8 @@ DefList: Vec<Def> = {
 };
 
 Type: Box<Type> = {
-    <l:@L> <ident:IDENT> <r:@R> => Box::new(Type::Ident { loc: (l, r), ident: String::from(ident) }),
-    <l:@L> ARRAY OF <typ:IDENT> <r:@R> => Box::new(Type::Array { loc: (l, r), typ: String::from(typ) }),
+    <l:@L> <type_:IDENT> <r:@R> => Box::new(Type::Alias { loc: (l, r), type_: String::from(type_) }),
+    <l:@L> ARRAY OF <elem:IDENT> <r:@R> => Box::new(Type::Array { loc: (l, r), elem: String::from(elem) }),
     <l:@L> LBRACE <attrs:TypeBindingList> RBRACE <r:@R> => Box::new(Type::Record { loc: (l, r), attrs }),
 };
 
@@ -158,7 +160,7 @@ ExprBindingList: Vec<(String, Expr)> = {
     <binding:ExprBinding> COMMA <mut bindings:ExprBindingList> => { bindings.insert(0, binding); bindings }
 };
 
-TypeBinding: (String, String) = <ident:IDENT> COLON <typ:IDENT> => (String::from(ident), String::from(typ));
+TypeBinding: (String, String) = <ident:IDENT> COLON <type_:IDENT> => (String::from(ident), String::from(type_));
 
 TypeBindingList: Vec<(String, String)> = {
     () => vec![],
