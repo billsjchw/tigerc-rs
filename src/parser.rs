@@ -13,9 +13,9 @@ mod tests {
     #[test]
     fn test_parse_arithmetic() {
         assert_eq!(
-            parse("a + b * c & d[0] < -e.f1_G"),
+            parse("a + b * c & d[e + f] < -g.h1_J"),
             Box::new(Expr::BinOp {
-                loc: (0, 26),
+                loc: (0, 30),
                 lhs: Box::new(Expr::BinOp {
                     loc: (0, 9),
                     lhs: Box::new(Expr::Ident {
@@ -38,29 +38,37 @@ mod tests {
                 }),
                 op: BinOp::And,
                 rhs: Box::new(Expr::BinOp {
-                    loc: (12, 26),
+                    loc: (12, 30),
                     lhs: Box::new(Expr::Index {
-                        loc: (12, 16),
+                        loc: (12, 20),
                         array: Box::new(Expr::Ident {
                             loc: (12, 13),
                             ident: String::from("d"),
                         }),
-                        index: Box::new(Expr::Integer {
-                            loc: (14, 15),
-                            value: 0,
+                        index: Box::new(Expr::BinOp {
+                            loc: (14, 19),
+                            lhs: Box::new(Expr::Ident {
+                                loc: (14, 15),
+                                ident: String::from("e"),
+                            }),
+                            op: BinOp::Add,
+                            rhs: Box::new(Expr::Ident {
+                                loc: (18, 19),
+                                ident: String::from("f"),
+                            }),
                         }),
                     }),
                     op: BinOp::LT,
                     rhs: Box::new(Expr::UnOp {
-                        loc: (19, 26),
+                        loc: (23, 30),
                         op: UnOp::Neg,
                         expr: Box::new(Expr::Attr {
-                            loc: (20, 26),
+                            loc: (24, 30),
                             record: Box::new(Expr::Ident {
-                                loc: (20, 21),
-                                ident: String::from("e"),
+                                loc: (24, 25),
+                                ident: String::from("g"),
                             }),
-                            attr: String::from("f1_G"),
+                            attr: String::from("h1_J"),
                         }),
                     }),
                 }),

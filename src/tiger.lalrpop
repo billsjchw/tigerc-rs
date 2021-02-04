@@ -54,27 +54,7 @@ match {
 
 pub Expr: Box<Expr> = {
     #[precedence(level="1")]
-    <l:@L> <literal:INTEGER> <r:@R> => Box::new(Expr::Integer { loc: (l, r), value: util::parse_integer_literal(literal) }),
-    #[precedence(level="1")]
-    <l:@L> <literal:STRING> <r:@R> => Box::new(Expr::String { loc: (l, r), value: util::parse_string_literal(literal) }),
-    #[precedence(level="1")]
-    <l:@L> NIL <r:@R> => Box::new(Expr::Nil { loc: (l, r) }),
-    #[precedence(level="1")]
-    <l:@L> BREAK <r:@R> => Box::new(Expr::Break { loc: (l, r) }),
-    #[precedence(level="1")]
-    <l:@L> <ident:IDENT> <r:@R> => Box::new(Expr::Ident { loc: (l, r), ident: String::from(ident) }),
-    #[precedence(level="1")]
-    <l:@L> <record:Expr> DOT <attr:IDENT> <r:@R> => Box::new( Expr::Attr { loc: (l, r), record, attr: String::from(attr) } ),
-    #[precedence(level="1")]
-    <l:@L> <array:Expr> LBRACK <index:Expr> RBRACK <r:@R> => Box::new( Expr::Index { loc: (l, r), array, index } ),
-    #[precedence(level="1")]
-    <l:@L> <typ:IDENT> LBRACE <init:Expr> SEMICOLON <size:Expr> RBRACE <r:@R> => Box::new(Expr::Array { loc: (l, r), typ: String::from(typ), size, init }),
-    #[precedence(level="1")]
-    <l:@L> <typ:IDENT> LBRACE <elems:ExprBindingList> RBRACE <r:@R> => Box::new(Expr::Record { loc: (l, r), typ: String::from(typ), elems }),
-    #[precedence(level="1")]
-    <l:@L> <func:IDENT> LPAREN <args:ArgumentList> RPAREN <r:@R> => Box::new(Expr::Call { loc: (l, r), func: String::from(func), args }),
-    #[precedence(level="1")]
-    SeqExpr,
+    AtomExpr,
     #[precedence(level="2")]
     <l:@L> ADD <expr:Expr> <r:@R> => Box::new(Expr::UnOp { loc: (l, r), op: UnOp::Pos, expr }),
     #[precedence(level="2")]
@@ -118,18 +98,27 @@ pub Expr: Box<Expr> = {
     #[assoc(side="left")]
     <l:@L> <lhs:Expr> OR <rhs:Expr> <r:@R> => Box::new(Expr::BinOp { loc: (l, r), lhs, op: BinOp::Or, rhs }),
     #[precedence(level="7")]
-    <l:@L> IF <test:Expr> THEN <body:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, body, orelse: Box::new(Expr::Empty { loc: (r, r) }) } ),
-    #[precedence(level="7")]
-    <l:@L> IF <test:Expr> THEN <body:SeqExpr> ELSE <orelse:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, body, orelse } ),
-    #[precedence(level="7")]
-    <l:@L> WHILE <test:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::While { loc: (l, r), test, body }),
-    #[precedence(level="7")]
-    <l:@L> FOR <var:IDENT> ASSIGN <low:Expr> TO <high:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::For { loc: (l, r), var: String::from(var), low, high, body }),
-    #[precedence(level="7")]
-    <l:@L> LET <defs:DefList> IN <body:LetExprBody> END <r:@R> => Box::new(Expr::Let { loc: (l, r), defs, body }),
-    #[precedence(level="8")]
     #[assoc(side="none")]
     <l:@L> <var:Expr> ASSIGN <expr:Expr> <r:@R> => Box::new(Expr::Assign { loc: (l, r), var, expr }),
+};
+
+AtomExpr: Box<Expr> = {
+    <l:@L> <literal:INTEGER> <r:@R> => Box::new(Expr::Integer { loc: (l, r), value: util::parse_integer_literal(literal) }),
+    <l:@L> <literal:STRING> <r:@R> => Box::new(Expr::String { loc: (l, r), value: util::parse_string_literal(literal) }),
+    <l:@L> NIL <r:@R> => Box::new(Expr::Nil { loc: (l, r) }),
+    <l:@L> BREAK <r:@R> => Box::new(Expr::Break { loc: (l, r) }),
+    <l:@L> <ident:IDENT> <r:@R> => Box::new(Expr::Ident { loc: (l, r), ident: String::from(ident) }),
+    <l:@L> <record:AtomExpr> DOT <attr:IDENT> <r:@R> => Box::new( Expr::Attr { loc: (l, r), record, attr: String::from(attr) } ),
+    <l:@L> <array:AtomExpr> LBRACK <index:Expr> RBRACK <r:@R> => Box::new( Expr::Index { loc: (l, r), array, index } ),
+    <l:@L> <typ:IDENT> LBRACE <init:Expr> SEMICOLON <size:Expr> RBRACE <r:@R> => Box::new(Expr::Array { loc: (l, r), typ: String::from(typ), size, init }),
+    <l:@L> <typ:IDENT> LBRACE <elems:ExprBindingList> RBRACE <r:@R> => Box::new(Expr::Record { loc: (l, r), typ: String::from(typ), elems }),
+    <l:@L> <func:IDENT> LPAREN <args:ArgumentList> RPAREN <r:@R> => Box::new(Expr::Call { loc: (l, r), func: String::from(func), args }),
+    <l:@L> IF <test:Expr> THEN <body:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, body, orelse: Box::new(Expr::Empty { loc: (r, r) }) } ),
+    <l:@L> IF <test:Expr> THEN <body:SeqExpr> ELSE <orelse:SeqExpr> <r:@R> => Box::new(Expr::If { loc: (l, r), test, body, orelse } ),
+    <l:@L> WHILE <test:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::While { loc: (l, r), test, body }),
+    <l:@L> FOR <var:IDENT> ASSIGN <low:Expr> TO <high:Expr> DO <body:SeqExpr> <r:@R> => Box::new(Expr::For { loc: (l, r), var: String::from(var), low, high, body }),
+    <l:@L> LET <defs:DefList> IN <body:LetExprBody> END <r:@R> => Box::new(Expr::Let { loc: (l, r), defs, body }),
+    SeqExpr,
 };
 
 Def: Box<Def> = {
