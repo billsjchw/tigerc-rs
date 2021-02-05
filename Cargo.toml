@@ -17,3 +17,7 @@ cranelift-object = "0.69.0"
 cranelift-module = "0.69.0"
 target-lexicon = "0.11.1"
 clap = "3.0.0-beta.2"
+
+[[bin]]
+name = "tigerc"
+path = "src/main.rs"
