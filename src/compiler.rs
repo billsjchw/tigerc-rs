@@ -1,3 +1,9 @@
+use crate::{
+    ast::{BinOp, Expr},
+    error::Error,
+    parser,
+};
+use cranelift::codegen::ir::types::*;
 use cranelift::{
     codegen::{binemit::NullTrapSink, isa},
     frontend::{FunctionBuilder, FunctionBuilderContext},
@@ -7,9 +13,6 @@ use cranelift_module::{Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use std::str::FromStr;
 use target_lexicon::triple;
-use cranelift::codegen::ir::types::*;
-
-use crate::{ast::Expr, error::Error, parser};
 
 pub struct Compiler {
     module: ObjectModule,
@@ -58,10 +61,79 @@ impl Compiler {
         Ok(bytes)
     }
 
-    fn handle_expr(expr: &Expr, builder: &mut FunctionBuilder) -> Result<Value, Error> {
+    fn handle_expr(expr: &Expr, builder: &mut FunctionBuilder) -> Result<(Value, Type), Error> {
         match *expr {
-            Expr::Integer { value, .. } => Ok(builder.ins().iconst(I64, value)),
+            Expr::Integer { value, .. } => Ok((builder.ins().iconst(I64, value), Type::Integer)),
+            Expr::BinOp {
+                ref lhs,
+                ref op,
+                ref rhs,
+                ..
+            } => {
+                let (lhs_value, lhs_type) = Compiler::handle_expr(&**lhs, builder)?;
+                let (rhs_value, rhs_type) = Compiler::handle_expr(&**rhs, builder)?;
+                match (lhs_type, op, rhs_type) {
+                    (Type::Integer, BinOp::Add, Type::Integer) => {
+                        Ok((builder.ins().iadd(lhs_value, rhs_value), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::Sub, Type::Integer) => {
+                        Ok((builder.ins().isub(lhs_value, rhs_value), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::Mul, Type::Integer) => {
+                        Ok((builder.ins().imul(lhs_value, rhs_value), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::Div, Type::Integer) => {
+                        Ok((builder.ins().udiv(lhs_value, rhs_value), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::And, Type::Integer) => {
+                        Ok((builder.ins().band(lhs_value, rhs_value), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::Or, Type::Integer) => {
+                        Ok((builder.ins().bor(lhs_value, rhs_value), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::Eq, Type::Integer) => {
+                        let tmp = builder.ins().icmp(IntCC::Equal, lhs_value, rhs_value);
+                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::NE, Type::Integer) => {
+                        let tmp = builder.ins().icmp(IntCC::NotEqual, lhs_value, rhs_value);
+                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::LT, Type::Integer) => {
+                        let tmp = builder
+                            .ins()
+                            .icmp(IntCC::SignedLessThan, lhs_value, rhs_value);
+                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::LE, Type::Integer) => {
+                        let tmp =
+                            builder
+                                .ins()
+                                .icmp(IntCC::SignedLessThanOrEqual, lhs_value, rhs_value);
+                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::GT, Type::Integer) => {
+                        let tmp =
+                            builder
+                                .ins()
+                                .icmp(IntCC::SignedGreaterThan, lhs_value, rhs_value);
+                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
+                    }
+                    (Type::Integer, BinOp::GE, Type::Integer) => {
+                        let tmp = builder.ins().icmp(
+                            IntCC::SignedGreaterThanOrEqual,
+                            lhs_value,
+                            rhs_value,
+                        );
+                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
+                    }
+                }
+            }
             _ => todo!(),
         }
     }
+}
+
+enum Type {
+    Integer,
 }
