@@ -11,6 +11,7 @@ pub mod compiler;
 pub mod error;
 pub mod parser;
 pub mod util;
+pub mod symtab;
 
 #[derive(Clap)]
 struct Opts {
