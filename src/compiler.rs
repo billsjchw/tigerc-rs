@@ -281,6 +281,7 @@ impl Compiler {
         while let Def::Func {
             loc,
             ref params,
+            ref escs,
             ref body,
             ..
         } = defs[tail]
@@ -304,9 +305,14 @@ impl Compiler {
 
             self.vars.enter_scope();
 
-            for (i, ((ident, _), type_)) in params.iter().zip(func.params.iter()).enumerate() {
+            for (i, (((ident, _), type_), esc)) in params
+                .iter()
+                .zip(func.params.iter())
+                .zip(escs.iter())
+                .enumerate()
+            {
                 let arg = builder.block_params(entry_block)[i + 1];
-                let access = if true {
+                let access = if *esc {
                     let stack_slot = builder
                         .create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
                     builder.ins().stack_store(arg, stack_slot, 0);

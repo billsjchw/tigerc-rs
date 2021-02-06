@@ -104,6 +104,7 @@ pub enum Def {
         ident: String,
         ret: Option<String>,
         params: Vec<(String, String)>,
+        escs: Vec<bool>,
         body: Box<Expr>,
     },
     Var {

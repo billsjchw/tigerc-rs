@@ -1,8 +1,10 @@
-use crate::{ast::Expr, error::Error};
 use crate::tiger;
+use crate::{ast::Expr, error::Error};
 
 pub fn parse(prog: &str) -> Result<Box<Expr>, Error> {
-    Ok(tiger::ExprParser::new().parse(prog).map_err(|err| Error::ParsingError(err.to_string()))?)
+    Ok(tiger::ExprParser::new()
+        .parse(prog)
+        .map_err(|err| Error::ParsingError(err.to_string()))?)
 }
 
 #[cfg(test)]
@@ -275,7 +277,8 @@ mod tests {
                      0;\n\
                      add_one(i)\n\
                  end\n"
-            ).unwrap(),
+            )
+            .unwrap(),
             Box::new(Expr::Let {
                 loc: (0, 189),
                 defs: vec![
@@ -323,6 +326,7 @@ mod tests {
                         ident: String::from("zero"),
                         ret: None,
                         params: vec![],
+                        escs: vec![],
                         body: Box::new(Expr::Seq {
                             loc: (125, 128),
                             exprs: vec![],
@@ -337,6 +341,7 @@ mod tests {
                         ident: String::from("add_one"),
                         ret: Some(String::from("int")),
                         params: vec![(String::from("x"), String::from("int"))],
+                        escs: vec![true],
                         body: Box::new(Expr::Seq {
                             loc: (161, 168),
                             exprs: vec![],
