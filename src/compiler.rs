@@ -14,7 +14,7 @@ use cranelift::{
 };
 use cranelift_module::{Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use std::str::FromStr;
+use std::{str::FromStr, todo};
 use target_lexicon::triple;
 
 pub struct Compiler {
@@ -75,9 +75,8 @@ impl Compiler {
         let entry_block = builder.create_block();
         builder.switch_to_block(entry_block);
         builder.seal_block(entry_block);
-        let link =
-                builder.create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
-        self.handle_expr(&*expr, 0, &mut builder, link)?;
+        let link = builder.create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
+        self.handle_rvalue(&*expr, 0, &mut builder, link)?;
         let ret_value = builder.ins().iconst(I64, 0);
         builder.ins().return_(&[ret_value]);
         builder.seal_all_blocks();
@@ -95,14 +94,14 @@ impl Compiler {
         Ok(bytes)
     }
 
-    fn handle_expr(
+    fn handle_rvalue(
         &mut self,
-        expr: &Expr,
+        rvalue: &Expr,
         depth: i32,
         builder: &mut FunctionBuilder,
         link: StackSlot,
     ) -> Result<(Value, Type), Error> {
-        match *expr {
+        match *rvalue {
             Expr::Integer { value, .. } => Ok((builder.ins().iconst(I64, value), Type::Integer)),
             Expr::BinOp {
                 ref lhs,
@@ -110,8 +109,8 @@ impl Compiler {
                 ref rhs,
                 ..
             } => {
-                let (lhs_value, lhs_type) = self.handle_expr(&**lhs, depth, builder, link)?;
-                let (rhs_value, rhs_type) = self.handle_expr(&**rhs, depth, builder, link)?;
+                let (lhs_value, lhs_type) = self.handle_rvalue(&**lhs, depth, builder, link)?;
+                let (rhs_value, rhs_type) = self.handle_rvalue(&**rhs, depth, builder, link)?;
                 match (lhs_type, op, rhs_type) {
                     (Type::Integer, BinOp::Add, Type::Integer) => {
                         Ok((builder.ins().iadd(lhs_value, rhs_value), Type::Integer))
@@ -184,15 +183,10 @@ impl Compiler {
                 let mut arg_values = vec![];
                 let mut arg_types = vec![];
                 if func.depth > 0 {
-                    let link_addr = builder.ins().stack_addr(I64, link, 0);
-                    let mut fp = builder.ins().iadd_imm(link_addr, 8);
-                    for _ in func.depth - 1..depth {
-                        fp = builder.ins().load(I64, MemFlags::new(), fp, -8);
-                    }
-                    arg_values.push(fp);
+                    arg_values.push(walk_link(depth - func.depth + 1, builder, link));
                 }
                 for arg in args.iter() {
-                    let (arg_value, arg_type) = self.handle_expr(arg, depth, builder, link)?;
+                    let (arg_value, arg_type) = self.handle_rvalue(arg, depth, builder, link)?;
                     arg_values.push(arg_value);
                     arg_types.push(arg_type);
                 }
@@ -221,7 +215,7 @@ impl Compiler {
                 self.types.enter_scope();
                 self.vars.enter_scope();
                 self.handle_defs(&defs[..], depth, builder, link)?;
-                let (value, type_) = self.handle_expr(&**body, depth, builder, link)?;
+                let (value, type_) = self.handle_rvalue(&**body, depth, builder, link)?;
                 self.funcs.exit_scope();
                 self.types.exit_scope();
                 self.vars.exit_scope();
@@ -233,13 +227,30 @@ impl Compiler {
                 ..
             } => {
                 for expr in exprs.iter() {
-                    self.handle_expr(expr, depth, builder, link)?;
+                    self.handle_rvalue(expr, depth, builder, link)?;
                 }
-                self.handle_expr(expr, depth, builder, link)
+                self.handle_rvalue(expr, depth, builder, link)
             }
             Expr::Empty { .. } => {
                 let value = builder.ins().iconst(I64, 0);
                 Ok((value, Type::Unit))
+            }
+            Expr::Ident { loc, ref ident } => {
+                let var = self.vars.get(ident).ok_or(Error::UndefVar(loc))?;
+                match var.access {
+                    Access::Temporary(irvar) => Ok((builder.use_var(irvar), var.type_)),
+                    Access::Memory(slot) if var.depth == depth => {
+                        Ok((builder.ins().stack_load(I64, slot, 0), var.type_))
+                    }
+                    Access::Memory(slot) => {
+                        let fp = walk_link(depth - var.depth, builder, link);
+                        let offset = -(slot.as_u32() as i32 + 1) * 8;
+                        Ok((
+                            builder.ins().load(I64, MemFlags::new(), fp, offset),
+                            var.type_,
+                        ))
+                    }
+                }
             }
             _ => todo!(),
         }
@@ -250,7 +261,7 @@ impl Compiler {
         defs: &[Def],
         depth: i32,
         builder: &mut FunctionBuilder,
-        link: StackSlot
+        link: StackSlot,
     ) -> Result<(), Error> {
         if defs.len() == 0 {
             return Ok(());
@@ -343,7 +354,8 @@ impl Compiler {
                 );
             }
 
-            let (ret_value, ret_type) = self.handle_expr(&**body, depth + 1, &mut builder, link)?;
+            let (ret_value, ret_type) =
+                self.handle_rvalue(&**body, depth + 1, &mut builder, link)?;
 
             self.vars.exit_scope();
 
@@ -427,4 +439,13 @@ struct Var {
     type_: Type,
     depth: i32,
     access: Access,
+}
+
+fn walk_link(delta: i32, builder: &mut FunctionBuilder, link: StackSlot) -> Value {
+    let link_addr = builder.ins().stack_addr(I64, link, 0);
+    let mut fp = builder.ins().iadd_imm(link_addr, 8);
+    for _ in 0..delta {
+        fp = builder.ins().load(I64, MemFlags::new(), fp, -8);
+    }
+    fp
 }
