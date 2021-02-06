@@ -75,7 +75,9 @@ impl Compiler {
         let entry_block = builder.create_block();
         builder.switch_to_block(entry_block);
         builder.seal_block(entry_block);
-        self.handle_expr(&*expr, 0, &mut builder)?;
+        let link =
+                builder.create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
+        self.handle_expr(&*expr, 0, &mut builder, link)?;
         let ret_value = builder.ins().iconst(I64, 0);
         builder.ins().return_(&[ret_value]);
         builder.seal_all_blocks();
@@ -98,6 +100,7 @@ impl Compiler {
         expr: &Expr,
         depth: i32,
         builder: &mut FunctionBuilder,
+        link: StackSlot,
     ) -> Result<(Value, Type), Error> {
         match *expr {
             Expr::Integer { value, .. } => Ok((builder.ins().iconst(I64, value), Type::Integer)),
@@ -107,8 +110,8 @@ impl Compiler {
                 ref rhs,
                 ..
             } => {
-                let (lhs_value, lhs_type) = self.handle_expr(&**lhs, depth, builder)?;
-                let (rhs_value, rhs_type) = self.handle_expr(&**rhs, depth, builder)?;
+                let (lhs_value, lhs_type) = self.handle_expr(&**lhs, depth, builder, link)?;
+                let (rhs_value, rhs_type) = self.handle_expr(&**rhs, depth, builder, link)?;
                 match (lhs_type, op, rhs_type) {
                     (Type::Integer, BinOp::Add, Type::Integer) => {
                         Ok((builder.ins().iadd(lhs_value, rhs_value), Type::Integer))
@@ -181,10 +184,15 @@ impl Compiler {
                 let mut arg_values = vec![];
                 let mut arg_types = vec![];
                 if func.depth > 0 {
-                    todo!();
+                    let link_addr = builder.ins().stack_addr(I64, link, 0);
+                    let mut fp = builder.ins().iadd_imm(link_addr, 8);
+                    for _ in func.depth - 1..depth {
+                        fp = builder.ins().load(I64, MemFlags::new(), fp, -8);
+                    }
+                    arg_values.push(fp);
                 }
                 for arg in args.iter() {
-                    let (arg_value, arg_type) = self.handle_expr(arg, depth, builder)?;
+                    let (arg_value, arg_type) = self.handle_expr(arg, depth, builder, link)?;
                     arg_values.push(arg_value);
                     arg_types.push(arg_type);
                 }
@@ -212,8 +220,8 @@ impl Compiler {
                 self.funcs.enter_scope();
                 self.types.enter_scope();
                 self.vars.enter_scope();
-                self.handle_defs(&defs[..], depth, builder)?;
-                let (value, type_) = self.handle_expr(&**body, depth, builder)?;
+                self.handle_defs(&defs[..], depth, builder, link)?;
+                let (value, type_) = self.handle_expr(&**body, depth, builder, link)?;
                 self.funcs.exit_scope();
                 self.types.exit_scope();
                 self.vars.exit_scope();
@@ -225,9 +233,9 @@ impl Compiler {
                 ..
             } => {
                 for expr in exprs.iter() {
-                    self.handle_expr(expr, depth, builder)?;
+                    self.handle_expr(expr, depth, builder, link)?;
                 }
-                self.handle_expr(expr, depth, builder)
+                self.handle_expr(expr, depth, builder, link)
             }
             Expr::Empty { .. } => {
                 let value = builder.ins().iconst(I64, 0);
@@ -242,6 +250,7 @@ impl Compiler {
         defs: &[Def],
         depth: i32,
         builder: &mut FunctionBuilder,
+        link: StackSlot
     ) -> Result<(), Error> {
         if defs.len() == 0 {
             return Ok(());
@@ -269,7 +278,7 @@ impl Compiler {
                 None => Type::Unit,
             };
             func.depth = depth + 1;
-            self.funcs.insert(func.name.clone(), func.clone());
+            self.funcs.insert(ident.clone(), func.clone());
             funcs.push(func);
             tail += 1;
             if tail == defs.len() {
@@ -298,10 +307,10 @@ impl Compiler {
             builder.seal_block(entry_block);
             builder.append_block_params_for_function_params(entry_block);
 
-            let static_link =
+            let link =
                 builder.create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
             let arg0 = builder.block_params(entry_block)[0];
-            builder.ins().stack_store(arg0, static_link, 0);
+            builder.ins().stack_store(arg0, link, 0);
 
             self.vars.enter_scope();
 
@@ -313,10 +322,10 @@ impl Compiler {
             {
                 let arg = builder.block_params(entry_block)[i + 1];
                 let access = if *esc {
-                    let stack_slot = builder
+                    let slot = builder
                         .create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
-                    builder.ins().stack_store(arg, stack_slot, 0);
-                    Access::Memory(stack_slot)
+                    builder.ins().stack_store(arg, slot, 0);
+                    Access::Memory(slot)
                 } else {
                     self.seq += 1;
                     let var = Variable::with_u32(self.seq as u32);
@@ -334,7 +343,7 @@ impl Compiler {
                 );
             }
 
-            let (ret_value, ret_type) = self.handle_expr(&**body, depth + 1, &mut builder)?;
+            let (ret_value, ret_type) = self.handle_expr(&**body, depth + 1, &mut builder, link)?;
 
             self.vars.exit_scope();
 
@@ -360,7 +369,7 @@ impl Compiler {
         }
 
         if tail > 0 {
-            return self.handle_defs(&defs[tail..], depth, builder);
+            return self.handle_defs(&defs[tail..], depth, builder, link);
         }
 
         todo!()
