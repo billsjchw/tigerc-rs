@@ -254,6 +254,7 @@ impl Compiler {
                             var.type_,
                         ))
                     }
+                    _ => panic!(),
                 }
             }
             Expr::Assign {
@@ -284,6 +285,9 @@ impl Compiler {
                         builder
                             .ins()
                             .store(MemFlags::new(), rvalue_value, fp, offset);
+                    }
+                    Access::Heap(addr) => {
+                        builder.ins().store(MemFlags::new(), rvalue_value, addr, 0);
                     }
                 }
 
@@ -327,28 +331,14 @@ impl Compiler {
                 ref array,
                 ref index,
             } => {
-                let (array_value, array_type) =
-                    self.handle_rvalue(&**array, depth, builder, link)?;
-                let (index_value, index_type) =
-                    self.handle_rvalue(&**index, depth, builder, link)?;
-
-                let elem = match array_type {
-                    Type::Array(id) => Ok(*self.arrays.get(&id).unwrap()),
-                    _ => Err(Error::ArrayNotArray(loc)),
-                }?;
-                if index_type != Type::Integer {
-                    return Err(Error::IndexNotInteger(loc));
-                }
-
-                let offset = builder.ins().imul_imm(index_value, 8);
-                let addr = builder.ins().iadd(array_value, offset);
+                let (addr, elem) =
+                    self.translate_index(&**array, &**index, loc, depth, builder, link)?;
                 Ok((builder.ins().load(I64, MemFlags::new(), addr, 0), elem))
             }
             _ => todo!(),
         }
     }
 
-    #[allow(unused_variables)]
     fn handle_lvalue(
         &mut self,
         lvalue: &Expr,
@@ -360,6 +350,15 @@ impl Compiler {
             Expr::Ident { loc, ref ident } => {
                 let var = self.vars.get(ident).ok_or(Error::UndefVar(loc))?;
                 Ok((var.access, var.type_))
+            }
+            Expr::Index {
+                loc,
+                ref array,
+                ref index,
+            } => {
+                let (addr, elem) =
+                    self.translate_index(&**array, &**index, loc, depth, builder, link)?;
+                Ok((Access::Heap(addr), elem))
             }
             _ => todo!(),
         }
@@ -577,6 +576,30 @@ impl Compiler {
         let call = builder.ins().call(local_callee, args);
         builder.inst_results(call)[0]
     }
+
+    fn translate_index(
+        &mut self,
+        array: &Expr,
+        index: &Expr,
+        loc: (usize, usize),
+        depth: i32,
+        builder: &mut FunctionBuilder,
+        link: StackSlot,
+    ) -> Result<(Value, Type), Error> {
+        let (array_value, array_type) = self.handle_rvalue(array, depth, builder, link)?;
+        let (index_value, index_type) = self.handle_rvalue(index, depth, builder, link)?;
+
+        let elem = match array_type {
+            Type::Array(id) => Ok(*self.arrays.get(&id).unwrap()),
+            _ => Err(Error::ArrayNotArray(loc)),
+        }?;
+        if index_type != Type::Integer {
+            return Err(Error::IndexNotInteger(loc));
+        }
+
+        let offset = builder.ins().imul_imm(index_value, 8);
+        Ok((builder.ins().iadd(array_value, offset), elem))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -642,6 +665,7 @@ impl Func {
 enum Access {
     Temporary(Variable),
     Stack(i32, StackSlot),
+    Heap(Value),
 }
 
 struct Var {
