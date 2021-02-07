@@ -4,11 +4,15 @@ use crate::{
     parser,
     symtab::SymbolTable,
 };
-use codegen::ir::StackSlot;
-use cranelift::codegen::ir::types::Type as IRType;
-use cranelift::codegen::ir::types::*;
 use cranelift::{
-    codegen::{binemit::NullTrapSink, isa},
+    codegen::{
+        binemit::NullTrapSink,
+        ir::{
+            types::{Type as IRType, *},
+            StackSlot,
+        },
+        isa,
+    },
     frontend::{FunctionBuilder, FunctionBuilderContext},
     prelude::*,
 };
@@ -22,6 +26,7 @@ pub struct Compiler {
     funcs: SymbolTable<String, Func>,
     types: SymbolTable<String, Type>,
     vars: SymbolTable<String, Var>,
+    arrays: HashMap<i32, Type>,
     seq: i32,
 }
 
@@ -55,12 +60,14 @@ impl Compiler {
         types.insert(String::from("int"), Type::Integer);
 
         let vars = SymbolTable::new();
+        let arrays = HashMap::new();
 
         Self {
             module,
             funcs,
             types,
             vars,
+            arrays,
             seq: 0,
         }
     }
@@ -77,8 +84,8 @@ impl Compiler {
         builder.seal_block(entry_block);
         let link = builder.create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
         self.handle_rvalue(&*expr, 0, &mut builder, link)?;
-        let ret_value = builder.ins().iconst(I64, 0);
-        builder.ins().return_(&[ret_value]);
+        let ret = builder.ins().iconst(I64, 0);
+        builder.ins().return_(&[ret]);
         builder.seal_all_blocks();
         builder.finalize();
         let id = self
@@ -199,14 +206,11 @@ impl Compiler {
 
                 let mut sig = self.module.make_signature();
                 func.translate(&mut sig);
-                let callee = self
-                    .module
-                    .declare_function(&func.name[..], Linkage::Import, &sig)
-                    .unwrap();
-                let local_callee = self.module.declare_func_in_func(callee, &mut builder.func);
 
-                let call = builder.ins().call(local_callee, &arg_values);
-                Ok((builder.inst_results(call)[0], func.ret))
+                Ok((
+                    self.translate_call(&func.name[..], &sig, &arg_values, builder),
+                    func.ret,
+                ))
             }
             Expr::Let {
                 ref defs, ref body, ..
@@ -284,6 +288,61 @@ impl Compiler {
                 }
 
                 Ok((builder.ins().iconst(I64, 0), Type::Unit))
+            }
+            Expr::Nil { .. } => Ok((builder.ins().iconst(I64, 0), Type::Nil)),
+            Expr::Array {
+                loc,
+                ref type_,
+                ref size,
+                ref init,
+            } => {
+                let type_ = *self.types.get(type_).ok_or(Error::UndefType(loc))?;
+                let elem = match type_ {
+                    Type::Array(id) => Ok(*self.arrays.get(&id).unwrap()),
+                    _ => Err(Error::TypeNotArray(loc)),
+                }?;
+
+                let (size_value, size_type) = self.handle_rvalue(&**size, depth, builder, link)?;
+                let (init_value, init_type) = self.handle_rvalue(&**init, depth, builder, link)?;
+
+                if init_type != elem {
+                    return Err(Error::ArrayInitMismatch(loc));
+                }
+                if size_type != Type::Integer {
+                    return Err(Error::ArraySizeNotInteger(loc));
+                }
+
+                let mut sig = self.module.make_signature();
+                sig.params.push(AbiParam::new(I64));
+                sig.params.push(AbiParam::new(I64));
+                sig.returns.push(AbiParam::new(I64));
+
+                Ok((
+                    self.translate_call("make_array", &sig, &[size_value, init_value], builder),
+                    type_,
+                ))
+            }
+            Expr::Index {
+                loc,
+                ref array,
+                ref index,
+            } => {
+                let (array_value, array_type) =
+                    self.handle_rvalue(&**array, depth, builder, link)?;
+                let (index_value, index_type) =
+                    self.handle_rvalue(&**index, depth, builder, link)?;
+
+                let elem = match array_type {
+                    Type::Array(id) => Ok(*self.arrays.get(&id).unwrap()),
+                    _ => Err(Error::ArrayNotArray(loc)),
+                }?;
+                if index_type != Type::Integer {
+                    return Err(Error::IndexNotInteger(loc));
+                }
+
+                let offset = builder.ins().imul_imm(index_value, 8);
+                let addr = builder.ins().iadd(array_value, offset);
+                Ok((builder.ins().load(I64, MemFlags::new(), addr, 0), elem))
             }
             _ => todo!(),
         }
@@ -436,16 +495,26 @@ impl Compiler {
         let mut tail = 0;
         let mut aliases = HashMap::new();
         let mut alias_locs = HashMap::new();
+        let mut arrays = HashMap::new();
+        let mut array_locs = HashMap::new();
         while let Def::Type {
             loc,
             ref ident,
             ref type_,
             ..
-        } = defs[tail] {
+        } = defs[tail]
+        {
             match **type_ {
                 ASTType::Alias { ref type_, .. } => {
                     aliases.insert(ident.clone(), type_.clone());
                     alias_locs.insert(ident.clone(), loc);
+                }
+                ASTType::Array { ref elem, .. } => {
+                    self.seq += 1;
+                    arrays.insert(self.seq, elem.clone());
+                    array_locs.insert(self.seq, loc);
+                    self.types.insert(ident.clone(), Type::Array(self.seq));
+                    aliases.remove(ident);
                 }
                 _ => todo!(),
             }
@@ -457,6 +526,7 @@ impl Compiler {
 
         let mut actuals = HashMap::new();
         for (ident, alias) in aliases.iter() {
+            let loc = *alias_locs.get(ident).unwrap();
             let mut p = ident.clone();
             let mut q = alias.clone();
             let type_ = loop {
@@ -469,7 +539,7 @@ impl Compiler {
                     }
                 }
                 if p == q {
-                    break Err(Error::AliasCycle(*alias_locs.get(ident).unwrap()));
+                    break Err(Error::AliasCycle(loc));
                 }
             }?;
             actuals.insert(ident.clone(), type_);
@@ -478,18 +548,43 @@ impl Compiler {
             self.types.insert(ident, type_);
         }
 
+        for (id, elem) in arrays.iter() {
+            let loc = *array_locs.get(id).unwrap();
+            let elem = self.types.get(elem).ok_or(Error::UndefType(loc))?;
+            self.arrays.insert(*id, *elem);
+        }
+
         if tail > 0 {
             return self.handle_defs(&defs[tail..], depth, builder, link);
         }
 
         todo!()
     }
+
+    fn translate_call(
+        &mut self,
+        name: &str,
+        sig: &Signature,
+        args: &[Value],
+        builder: &mut FunctionBuilder,
+    ) -> Value {
+        let callee = self
+            .module
+            .declare_function(name, Linkage::Import, sig)
+            .unwrap();
+        let local_callee = self.module.declare_func_in_func(callee, &mut builder.func);
+
+        let call = builder.ins().call(local_callee, args);
+        builder.inst_results(call)[0]
+    }
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(Clone, Copy)]
 enum Type {
     Integer,
     Unit,
+    Nil,
+    Array(i32),
 }
 
 impl Type {
@@ -497,6 +592,8 @@ impl Type {
         match *self {
             Type::Integer => I64,
             Type::Unit => I64,
+            Type::Nil => I64,
+            Type::Array(_) => I64,
         }
     }
 }
@@ -504,6 +601,20 @@ impl Type {
 impl Default for Type {
     fn default() -> Self {
         Type::Unit
+    }
+}
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        match (*self, *other) {
+            (Type::Integer, Type::Integer) => true,
+            (Type::Unit, Type::Unit) => true,
+            (Type::Nil, Type::Nil) => false,
+            (Type::Nil, Type::Array(_)) => true,
+            (Type::Array(_), Type::Nil) => true,
+            (Type::Array(id), Type::Array(other_id)) => id == other_id,
+            _ => false,
+        }
     }
 }
 

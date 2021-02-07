@@ -8,4 +8,9 @@ pub enum Error {
     RetMismatch((usize, usize)),
     AssignMismatch((usize, usize)),
     AliasCycle((usize, usize)),
+    TypeNotArray((usize, usize)),
+    ArrayInitMismatch((usize, usize)),
+    ArraySizeNotInteger((usize, usize)),
+    ArrayNotArray((usize, usize)),
+    IndexNotInteger((usize, usize)),
 }
