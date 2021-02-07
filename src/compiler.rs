@@ -239,11 +239,11 @@ impl Compiler {
                 let var = self.vars.get(ident).ok_or(Error::UndefVar(loc))?;
                 match var.access {
                     Access::Temporary(irvar) => Ok((builder.use_var(irvar), var.type_)),
-                    Access::Memory(slot) if var.depth == depth => {
+                    Access::Stack(var_depth, slot) if var_depth == depth => {
                         Ok((builder.ins().stack_load(I64, slot, 0), var.type_))
                     }
-                    Access::Memory(slot) => {
-                        let fp = walk_link(depth - var.depth, builder, link);
+                    Access::Stack(var_depth, slot) => {
+                        let fp = walk_link(depth - var_depth, builder, link);
                         let offset = -(slot.as_u32() as i32 + 1) * 8;
                         Ok((
                             builder.ins().load(I64, MemFlags::new(), fp, offset),
@@ -336,7 +336,7 @@ impl Compiler {
                     let slot = builder
                         .create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
                     builder.ins().stack_store(arg, slot, 0);
-                    Access::Memory(slot)
+                    Access::Stack(depth + 1, slot)
                 } else {
                     self.seq += 1;
                     let var = Variable::with_u32(self.seq as u32);
@@ -348,7 +348,6 @@ impl Compiler {
                     ident.clone(),
                     Var {
                         type_: *type_,
-                        depth: depth + 1,
                         access,
                     },
                 );
@@ -431,13 +430,11 @@ impl Func {
 
 enum Access {
     Temporary(Variable),
-    Memory(StackSlot),
+    Stack(i32, StackSlot),
 }
 
-#[allow(dead_code)]
 struct Var {
     type_: Type,
-    depth: i32,
     access: Access,
 }
 
