@@ -6,4 +6,5 @@ pub enum Error {
     UndefVar((usize, usize)),
     ParamMismatch((usize, usize)),
     RetMismatch((usize, usize)),
+    AssignMismatch((usize, usize)),
 }

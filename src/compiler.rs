@@ -239,11 +239,11 @@ impl Compiler {
                 let var = self.vars.get(ident).ok_or(Error::UndefVar(loc))?;
                 match var.access {
                     Access::Temporary(irvar) => Ok((builder.use_var(irvar), var.type_)),
-                    Access::Stack(var_depth, slot) if var_depth == depth => {
+                    Access::Stack(access_depth, slot) if access_depth == depth => {
                         Ok((builder.ins().stack_load(I64, slot, 0), var.type_))
                     }
-                    Access::Stack(var_depth, slot) => {
-                        let fp = walk_link(depth - var_depth, builder, link);
+                    Access::Stack(access_depth, slot) => {
+                        let fp = walk_link(depth - access_depth, builder, link);
                         let offset = -(slot.as_u32() as i32 + 1) * 8;
                         Ok((
                             builder.ins().load(I64, MemFlags::new(), fp, offset),
@@ -251,6 +251,56 @@ impl Compiler {
                         ))
                     }
                 }
+            }
+            Expr::Assign {
+                loc,
+                ref lvalue,
+                ref rvalue,
+                ..
+            } => {
+                let (lvalue_access, lvalue_type) =
+                    self.handle_lvalue(&**lvalue, depth, builder, link)?;
+                let (rvalue_value, rvalue_type) =
+                    self.handle_rvalue(&**rvalue, depth, builder, link)?;
+
+                if lvalue_type != rvalue_type {
+                    return Err(Error::AssignMismatch(loc));
+                }
+
+                match lvalue_access {
+                    Access::Temporary(var) => {
+                        builder.def_var(var, rvalue_value);
+                    }
+                    Access::Stack(access_depth, slot) if access_depth == depth => {
+                        builder.ins().stack_store(rvalue_value, slot, 0);
+                    }
+                    Access::Stack(access_depth, slot) => {
+                        let fp = walk_link(depth - access_depth, builder, link);
+                        let offset = -(slot.as_u32() as i32 + 1) * 8;
+                        builder
+                            .ins()
+                            .store(MemFlags::new(), rvalue_value, fp, offset);
+                    }
+                }
+
+                Ok((builder.ins().iconst(I64, 0), Type::Unit))
+            }
+            _ => todo!(),
+        }
+    }
+
+    #[allow(unused_variables)]
+    fn handle_lvalue(
+        &mut self,
+        lvalue: &Expr,
+        depth: i32,
+        builder: &mut FunctionBuilder,
+        link: StackSlot,
+    ) -> Result<(Access, Type), Error> {
+        match *lvalue {
+            Expr::Ident { loc, ref ident } => {
+                let var = self.vars.get(ident).ok_or(Error::UndefVar(loc))?;
+                Ok((var.access, var.type_))
             }
             _ => todo!(),
         }
@@ -428,6 +478,7 @@ impl Func {
     }
 }
 
+#[derive(Clone, Copy)]
 enum Access {
     Temporary(Variable),
     Stack(i32, StackSlot),
