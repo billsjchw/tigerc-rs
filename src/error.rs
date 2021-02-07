@@ -7,4 +7,5 @@ pub enum Error {
     ParamMismatch((usize, usize)),
     RetMismatch((usize, usize)),
     AssignMismatch((usize, usize)),
+    AliasCycle((usize, usize)),
 }

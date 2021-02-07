@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinOp, Def, Expr},
+    ast::{BinOp, Def, Expr, Type as ASTType},
     error::Error,
     parser,
     symtab::SymbolTable,
@@ -14,7 +14,7 @@ use cranelift::{
 };
 use cranelift_module::{Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use std::{str::FromStr, todo};
+use std::{collections::HashMap, str::FromStr, todo};
 use target_lexicon::triple;
 
 pub struct Compiler {
@@ -427,6 +427,55 @@ impl Compiler {
             if tail == defs.len() {
                 break;
             }
+        }
+
+        if tail > 0 {
+            return self.handle_defs(&defs[tail..], depth, builder, link);
+        }
+
+        let mut tail = 0;
+        let mut aliases = HashMap::new();
+        let mut alias_locs = HashMap::new();
+        while let Def::Type {
+            loc,
+            ref ident,
+            ref type_,
+            ..
+        } = defs[tail] {
+            match **type_ {
+                ASTType::Alias { ref type_, .. } => {
+                    aliases.insert(ident.clone(), type_.clone());
+                    alias_locs.insert(ident.clone(), loc);
+                }
+                _ => todo!(),
+            }
+            tail += 1;
+            if tail == defs.len() {
+                break;
+            }
+        }
+
+        let mut actuals = HashMap::new();
+        for (ident, alias) in aliases.iter() {
+            let mut p = ident.clone();
+            let mut q = alias.clone();
+            let type_ = loop {
+                p = aliases.get(&p).unwrap_or(&p).clone();
+                q = aliases.get(&q).unwrap_or(&q).clone();
+                q = aliases.get(&q).unwrap_or(&q).clone();
+                if let Some(type_) = self.types.get(&q) {
+                    if !aliases.contains_key(&q) {
+                        break Ok(*type_);
+                    }
+                }
+                if p == q {
+                    break Err(Error::AliasCycle(*alias_locs.get(ident).unwrap()));
+                }
+            }?;
+            actuals.insert(ident.clone(), type_);
+        }
+        for (ident, type_) in actuals {
+            self.types.insert(ident, type_);
         }
 
         if tail > 0 {
