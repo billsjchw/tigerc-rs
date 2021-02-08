@@ -96,7 +96,6 @@ impl Compiler {
         self.handle_rvalue(&*expr, 0, &mut builder, link)?;
         let ret = builder.ins().iconst(I64, 0);
         builder.ins().return_(&[ret]);
-        builder.seal_all_blocks();
         builder.finalize();
         let id = self
             .module
@@ -340,6 +339,65 @@ impl Compiler {
 
                 Ok((builder.ins().symbol_value(I64, local_id), Type::String))
             }
+            Expr::For {
+                loc,
+                ref cnt,
+                esc,
+                ref low,
+                ref high,
+                ref body,
+            } => {
+                let (low_value, low_type) = self.handle_rvalue(&**low, depth, builder, link)?;
+                let (high_value, high_type) = self.handle_rvalue(&**high, depth, builder, link)?;
+
+                if low_type != Type::Integer || high_type != Type::Integer {
+                    return Err(Error::ForBoundNotInteger(loc));
+                }
+
+                let access = self.new_var(esc, depth, builder);
+
+                let inc_block = builder.create_block();
+                let body_block = builder.create_block();
+                let exit_block = builder.create_block();
+
+                self.vars.enter_scope();
+
+                self.vars.insert(
+                    cnt.clone(),
+                    Var {
+                        type_: Type::Integer,
+                        access,
+                        readonly: true,
+                    },
+                );
+
+                self.translate_store(access, low_value, depth, builder, link);
+                let tmp = builder
+                    .ins()
+                    .icmp(IntCC::SignedLessThanOrEqual, low_value, high_value);
+                builder.ins().brz(tmp, exit_block, &[]);
+                builder.ins().jump(body_block, &[]);
+                builder.switch_to_block(body_block);
+                self.handle_rvalue(&**body, depth, builder, link)?;
+                let cnt = self.translate_load(access, depth, builder, link);
+                let tmp = builder.ins().icmp(IntCC::SignedLessThan, cnt, high_value);
+                builder.ins().brnz(tmp, inc_block, &[]);
+                builder.ins().jump(exit_block, &[]);
+                builder.switch_to_block(inc_block);
+                let cnt = self.translate_load(access, depth, builder, link);
+                let new_cnt = builder.ins().iadd_imm(cnt, 1);
+                self.translate_store(access, new_cnt, depth, builder, link);
+                builder.ins().jump(body_block, &[]);
+                builder.switch_to_block(exit_block);
+
+                self.vars.exit_scope();
+
+                builder.seal_block(inc_block);
+                builder.seal_block(body_block);
+                builder.seal_block(exit_block);
+
+                Ok((builder.ins().iconst(I64, 0), Type::Unit))
+            }
             _ => todo!(),
         }
     }
@@ -354,6 +412,11 @@ impl Compiler {
         match *lvalue {
             Expr::Ident { loc, ref ident } => {
                 let var = self.vars.get(ident).ok_or(Error::UndefVar(loc))?;
+
+                if var.readonly {
+                    return Err(Error::AssignToReadonly(loc));
+                }
+
                 Ok((var.access, var.type_))
             }
             Expr::Index {
@@ -452,6 +515,7 @@ impl Compiler {
                     Var {
                         type_: *type_,
                         access,
+                        readonly: false,
                     },
                 );
             }
@@ -466,7 +530,6 @@ impl Compiler {
             }
 
             builder.ins().return_(&[ret_value]);
-            builder.seal_all_blocks();
             builder.finalize();
             let id = self
                 .module
@@ -577,6 +640,7 @@ impl Compiler {
                 Var {
                     type_: init_type,
                     access,
+                    readonly: false,
                 },
             );
         }
@@ -767,4 +831,5 @@ enum Access {
 struct Var {
     type_: Type,
     access: Access,
+    readonly: bool,
 }

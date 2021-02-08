@@ -14,4 +14,6 @@ pub enum Error {
     ArrayNotArray((usize, usize)),
     IndexNotInteger((usize, usize)),
     VarInitMismatch((usize, usize)),
+    ForBoundNotInteger((usize, usize)),
+    AssignToReadonly((usize, usize)),
 }
