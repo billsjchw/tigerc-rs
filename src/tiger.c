@@ -10,18 +10,30 @@ int main(void) {
     return 0;
 }
 
+int64_t print(uint64_t addr) {
+    uint64_t len = *(uint64_t *) addr;
+    char *str = (char *) addr + 8;
+    uint64_t i = 0;
+
+    for (i = 0; i < len; ++i) {
+        putchar(str[i]);
+    }
+
+    return 0;
+}
+
 int64_t printi(int64_t value) {
     printf("%"PRId64, value);
     return 0;
 }
 
-int64_t make_array(int64_t size, int64_t init) {
+uint64_t make_array(uint64_t size, int64_t init) {
     int64_t *array = calloc(size, 8);
-    int64_t i = 0;
+    uint64_t i = 0;
 
     for (i = 0; i < size; ++i) {
         array[i] = init;
     }
 
-    return (int64_t) array;
+    return (uint64_t) array;
 }

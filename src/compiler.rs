@@ -16,7 +16,7 @@ use cranelift::{
     frontend::{FunctionBuilder, FunctionBuilderContext},
     prelude::*,
 };
-use cranelift_module::{Linkage, Module};
+use cranelift_module::{DataContext, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use std::{collections::HashMap, str::FromStr, todo};
 use target_lexicon::triple;
@@ -55,9 +55,19 @@ impl Compiler {
                 depth: 0,
             },
         );
+        funcs.insert(
+            String::from("print"),
+            Func {
+                name: String::from("print"),
+                params: vec![Type::String],
+                ret: Type::Unit,
+                depth: 0,
+            },
+        );
 
         let mut types = SymbolTable::new();
         types.insert(String::from("int"), Type::Integer);
+        types.insert(String::from("string"), Type::String);
 
         let vars = SymbolTable::new();
         let arrays = HashMap::new();
@@ -335,6 +345,26 @@ impl Compiler {
                     self.translate_index(&**array, &**index, loc, depth, builder, link)?;
                 Ok((builder.ins().load(I64, MemFlags::new(), addr, 0), elem))
             }
+            Expr::String { ref value, .. } => {
+                let len = value.len() as u64;
+                let mut contents = len.to_le_bytes().to_vec();
+                contents.append(&mut value.as_bytes().to_vec());
+
+                self.seq += 1;
+                let name = format!("string{}", self.seq);
+
+                let mut context = DataContext::new();
+                context.define(contents.into_boxed_slice());
+                let id = self
+                    .module
+                    .declare_data(&name[..], Linkage::Export, false, false)
+                    .unwrap();
+                self.module.define_data(id, &context).unwrap();
+
+                let local_id = self.module.declare_data_in_func(id, &mut builder.func);
+
+                Ok((builder.ins().symbol_value(I64, local_id), Type::String))
+            }
             _ => todo!(),
         }
     }
@@ -605,6 +635,7 @@ impl Compiler {
 #[derive(Clone, Copy)]
 enum Type {
     Integer,
+    String,
     Unit,
     Nil,
     Array(i32),
@@ -614,6 +645,7 @@ impl Type {
     fn translate(&self) -> IRType {
         match *self {
             Type::Integer => I64,
+            Type::String => I64,
             Type::Unit => I64,
             Type::Nil => I64,
             Type::Array(_) => I64,
@@ -631,6 +663,7 @@ impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (*self, *other) {
             (Type::Integer, Type::Integer) => true,
+            (Type::String, Type::String) => true,
             (Type::Unit, Type::Unit) => true,
             (Type::Nil, Type::Nil) => false,
             (Type::Nil, Type::Array(_)) => true,
