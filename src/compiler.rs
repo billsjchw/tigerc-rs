@@ -200,7 +200,7 @@ impl Compiler {
                 let mut arg_values = vec![];
                 let mut arg_types = vec![];
                 if func.depth > 0 {
-                    arg_values.push(walk_link(depth - func.depth + 1, builder, link));
+                    arg_values.push(self.walk_link(depth - func.depth + 1, builder, link));
                 }
                 for arg in args.iter() {
                     let (arg_value, arg_type) = self.handle_rvalue(arg, depth, builder, link)?;
@@ -251,21 +251,10 @@ impl Compiler {
             }
             Expr::Ident { loc, ref ident } => {
                 let var = self.vars.get(ident).ok_or(Error::UndefVar(loc))?;
-                match var.access {
-                    Access::Temporary(irvar) => Ok((builder.use_var(irvar), var.type_)),
-                    Access::Stack(access_depth, slot) if access_depth == depth => {
-                        Ok((builder.ins().stack_load(I64, slot, 0), var.type_))
-                    }
-                    Access::Stack(access_depth, slot) => {
-                        let fp = walk_link(depth - access_depth, builder, link);
-                        let offset = -(slot.as_u32() as i32 + 1) * 8;
-                        Ok((
-                            builder.ins().load(I64, MemFlags::new(), fp, offset),
-                            var.type_,
-                        ))
-                    }
-                    _ => panic!(),
-                }
+                Ok((
+                    self.translate_load(var.access, depth, builder, link),
+                    var.type_,
+                ))
             }
             Expr::Assign {
                 loc,
@@ -282,24 +271,7 @@ impl Compiler {
                     return Err(Error::AssignMismatch(loc));
                 }
 
-                match lvalue_access {
-                    Access::Temporary(var) => {
-                        builder.def_var(var, rvalue_value);
-                    }
-                    Access::Stack(access_depth, slot) if access_depth == depth => {
-                        builder.ins().stack_store(rvalue_value, slot, 0);
-                    }
-                    Access::Stack(access_depth, slot) => {
-                        let fp = walk_link(depth - access_depth, builder, link);
-                        let offset = -(slot.as_u32() as i32 + 1) * 8;
-                        builder
-                            .ins()
-                            .store(MemFlags::new(), rvalue_value, fp, offset);
-                    }
-                    Access::Heap(addr) => {
-                        builder.ins().store(MemFlags::new(), rvalue_value, addr, 0);
-                    }
-                }
+                self.translate_store(lvalue_access, rvalue_value, depth, builder, link);
 
                 Ok((builder.ins().iconst(I64, 0), Type::Unit))
             }
@@ -343,7 +315,10 @@ impl Compiler {
             } => {
                 let (addr, elem) =
                     self.translate_index(&**array, &**index, loc, depth, builder, link)?;
-                Ok((builder.ins().load(I64, MemFlags::new(), addr, 0), elem))
+                Ok((
+                    self.translate_load(Access::Heap(addr), depth, builder, link),
+                    elem,
+                ))
             }
             Expr::String { ref value, .. } => {
                 let len = value.len() as u64;
@@ -470,18 +445,8 @@ impl Compiler {
                 .enumerate()
             {
                 let arg = builder.block_params(entry_block)[i + 1];
-                let access = if *esc {
-                    let slot = builder
-                        .create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
-                    builder.ins().stack_store(arg, slot, 0);
-                    Access::Stack(depth + 1, slot)
-                } else {
-                    self.seq += 1;
-                    let var = Variable::with_u32(self.seq as u32);
-                    builder.declare_var(var, I64);
-                    builder.def_var(var, arg);
-                    Access::Temporary(var)
-                };
+                let access = self.new_var(*esc, depth + 1, &mut builder);
+                self.translate_store(access, arg, depth + 1, &mut builder, link);
                 self.vars.insert(
                     ident.clone(),
                     Var {
@@ -604,18 +569,8 @@ impl Compiler {
                 }
             }
 
-            let access = if esc {
-                let slot =
-                    builder.create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
-                builder.ins().stack_store(init_value, slot, 0);
-                Access::Stack(depth, slot)
-            } else {
-                self.seq += 1;
-                let var = Variable::with_u32(self.seq as u32);
-                builder.declare_var(var, I64);
-                builder.def_var(var, init_value);
-                Access::Temporary(var)
-            };
+            let access = self.new_var(esc, depth, builder);
+            self.translate_store(access, init_value, depth, builder, link);
 
             self.vars.insert(
                 ident.clone(),
@@ -668,6 +623,75 @@ impl Compiler {
 
         let offset = builder.ins().imul_imm(index_value, 8);
         Ok((builder.ins().iadd(array_value, offset), elem))
+    }
+
+    fn new_var(&mut self, esc: bool, depth: i32, builder: &mut FunctionBuilder) -> Access {
+        if esc {
+            let slot =
+                builder.create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
+            Access::Stack(depth, slot)
+        } else {
+            self.seq += 1;
+            let var = Variable::with_u32(self.seq as u32);
+            builder.declare_var(var, I64);
+            Access::Temporary(var)
+        }
+    }
+
+    fn walk_link(&self, delta: i32, builder: &mut FunctionBuilder, link: StackSlot) -> Value {
+        let link_addr = builder.ins().stack_addr(I64, link, 0);
+        let mut fp = builder.ins().iadd_imm(link_addr, 8);
+        for _ in 0..delta {
+            fp = builder.ins().load(I64, MemFlags::new(), fp, -8);
+        }
+        fp
+    }
+
+    fn translate_load(
+        &self,
+        access: Access,
+        depth: i32,
+        builder: &mut FunctionBuilder,
+        link: StackSlot,
+    ) -> Value {
+        match access {
+            Access::Temporary(var) => builder.use_var(var),
+            Access::Stack(access_depth, slot) if access_depth == depth => {
+                builder.ins().stack_load(I64, slot, 0)
+            }
+            Access::Stack(access_depth, slot) => {
+                let fp = self.walk_link(depth - access_depth, builder, link);
+                let offset = -(slot.as_u32() as i32 + 1) * 8;
+                builder.ins().load(I64, MemFlags::new(), fp, offset)
+            }
+            Access::Heap(addr) => builder.ins().load(I64, MemFlags::new(), addr, 0),
+        }
+    }
+
+    fn translate_store(
+        &self,
+        access: Access,
+        value: Value,
+        depth: i32,
+        builder: &mut FunctionBuilder,
+        link: StackSlot,
+    ) {
+        match access {
+            Access::Temporary(var) => {
+                builder.def_var(var, value);
+            }
+            Access::Stack(access_depth, slot) if access_depth == depth => {
+                builder.ins().stack_store(value, slot, 0);
+            }
+            Access::Stack(access_depth, slot) => {
+                let fp = self.walk_link(depth - access_depth, builder, link);
+                let offset = -(slot.as_u32() as i32 + 1) * 8;
+                builder.ins().store(MemFlags::new(), value, fp, offset);
+            }
+            Access::Heap(addr) => {
+                builder.ins().store(MemFlags::new(), value, addr, 0);
+            }
+        }
     }
 }
 
@@ -743,13 +767,4 @@ enum Access {
 struct Var {
     type_: Type,
     access: Access,
-}
-
-fn walk_link(delta: i32, builder: &mut FunctionBuilder, link: StackSlot) -> Value {
-    let link_addr = builder.ins().stack_addr(I64, link, 0);
-    let mut fp = builder.ins().iadd_imm(link_addr, 8);
-    for _ in 0..delta {
-        fp = builder.ins().load(I64, MemFlags::new(), fp, -8);
-    }
-    fp
 }
