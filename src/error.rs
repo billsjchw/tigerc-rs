@@ -13,4 +13,5 @@ pub enum Error {
     ArraySizeNotInteger((usize, usize)),
     ArrayNotArray((usize, usize)),
     IndexNotInteger((usize, usize)),
+    VarInitMismatch((usize, usize)),
 }

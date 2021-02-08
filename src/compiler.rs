@@ -587,7 +587,46 @@ impl Compiler {
             return self.handle_defs(&defs[tail..], depth, builder, link);
         }
 
-        todo!()
+        if let Def::Var {
+            loc,
+            ref ident,
+            esc,
+            ref type_,
+            ref init,
+        } = defs[0]
+        {
+            let (init_value, init_type) = self.handle_rvalue(&**init, depth, builder, link)?;
+
+            if let Some(ref type_) = *type_ {
+                let type_ = *self.types.get(type_).ok_or(Error::UndefType(loc))?;
+                if type_ != init_type {
+                    return Err(Error::VarInitMismatch(loc));
+                }
+            }
+
+            let access = if esc {
+                let slot =
+                    builder.create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
+                builder.ins().stack_store(init_value, slot, 0);
+                Access::Stack(depth, slot)
+            } else {
+                self.seq += 1;
+                let var = Variable::with_u32(self.seq as u32);
+                builder.declare_var(var, I64);
+                builder.def_var(var, init_value);
+                Access::Temporary(var)
+            };
+
+            self.vars.insert(
+                ident.clone(),
+                Var {
+                    type_: init_type,
+                    access,
+                },
+            );
+        }
+
+        self.handle_defs(&defs[1..], depth, builder, link)
     }
 
     fn translate_call(
