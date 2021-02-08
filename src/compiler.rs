@@ -8,7 +8,7 @@ use cranelift::{
     codegen::{
         binemit::NullTrapSink,
         ir::{
-            types::{Type as IRType, *},
+            types::*,
             StackSlot,
         },
         isa,
@@ -398,6 +398,46 @@ impl Compiler {
 
                 Ok((builder.ins().iconst(I64, 0), Type::Unit))
             }
+            Expr::If {
+                loc,
+                ref test,
+                ref then,
+                ref orelse,
+            } => {
+                let (test_value, test_type) = self.handle_rvalue(&**test, depth, builder, link)?;
+
+                if test_type != Type::Integer {
+                    return Err(Error::IfTestNotInteger(loc));
+                }
+
+                let then_block = builder.create_block();
+                let orelse_block = builder.create_block();
+                let merge_block = builder.create_block();
+
+                builder.append_block_param(merge_block, I64);
+
+                builder.ins().brnz(test_value, then_block, &[]);
+                builder.ins().jump(orelse_block, &[]);
+                builder.switch_to_block(then_block);
+                let (then_value, then_type) = self.handle_rvalue(&**then, depth, builder, link)?;
+                builder.ins().jump(merge_block, &[then_value]);
+
+                builder.switch_to_block(orelse_block);
+                let (orelse_value, orelse_type) =
+                    self.handle_rvalue(&**orelse, depth, builder, link)?;
+                builder.ins().jump(merge_block, &[orelse_value]);
+                builder.switch_to_block(merge_block);
+
+                builder.seal_block(then_block);
+                builder.seal_block(orelse_block);
+                builder.seal_block(merge_block);
+
+                if then_type != orelse_type {
+                    return Err(Error::IfMismatch(loc));
+                }
+
+                Ok((builder.block_params(merge_block)[0], then_type))
+            }
             _ => todo!(),
         }
     }
@@ -768,18 +808,6 @@ enum Type {
     Array(i32),
 }
 
-impl Type {
-    fn translate(&self) -> IRType {
-        match *self {
-            Type::Integer => I64,
-            Type::String => I64,
-            Type::Unit => I64,
-            Type::Nil => I64,
-            Type::Array(_) => I64,
-        }
-    }
-}
-
 impl Default for Type {
     fn default() -> Self {
         Type::Unit
@@ -814,10 +842,10 @@ impl Func {
         if self.depth > 0 {
             sig.params.push(AbiParam::new(I64));
         }
-        for param in self.params.iter() {
-            sig.params.push(AbiParam::new(param.translate()));
+        for _ in self.params.iter() {
+            sig.params.push(AbiParam::new(I64));
         }
-        sig.returns.push(AbiParam::new(self.ret.translate()));
+        sig.returns.push(AbiParam::new(I64));
     }
 }
 
