@@ -18,6 +18,7 @@ pub enum Error {
     ExprNotRecord((usize, usize)),
     AttrNotFound((usize, usize)),
     VarInitMismatch((usize, usize)),
+    NilVarInitWithoutType((usize, usize)),
     ForBoundNotInteger((usize, usize)),
     AssignToReadonly((usize, usize)),
     WhileTestNotInteger((usize, usize)),

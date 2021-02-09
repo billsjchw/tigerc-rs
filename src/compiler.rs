@@ -938,10 +938,17 @@ impl Compiler {
             let (init_value, init_type) =
                 self.handle_rvalue(&**init, depth, builder, link, break_block, continue_block)?;
 
-            if let Some(ref type_) = *type_ {
-                let type_ = *self.types.get(type_).ok_or(Error::UndefType(loc))?;
-                if type_ != init_type {
-                    return Err(Error::VarInitMismatch(loc));
+            match *type_ {
+                Some(ref type_) => {
+                    let type_ = *self.types.get(type_).ok_or(Error::UndefType(loc))?;
+                    if type_ != init_type {
+                        return Err(Error::VarInitMismatch(loc));
+                    }
+                }
+                None => {
+                    if init_type == Type::Nil {
+                        return Err(Error::NilVarInitWithoutType(loc));
+                    }
                 }
             }
 
@@ -1132,7 +1139,7 @@ impl PartialEq for Type {
             (Type::Integer, Type::Integer) => true,
             (Type::String, Type::String) => true,
             (Type::Unit, Type::Unit) => true,
-            (Type::Nil, Type::Nil) => false,
+            (Type::Nil, Type::Nil) => true,
             (Type::Nil, Type::Array(_)) => true,
             (Type::Array(_), Type::Nil) => true,
             (Type::Array(id), Type::Array(other_id)) => id == other_id,
