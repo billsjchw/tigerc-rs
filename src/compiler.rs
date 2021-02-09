@@ -18,7 +18,6 @@ use cranelift_object::{ObjectBuilder, ObjectModule};
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
-    todo,
 };
 use target_lexicon::triple;
 
@@ -153,7 +152,19 @@ impl Compiler {
                         let tmp = builder.ins().icmp(cc, lhs_value, rhs_value);
                         Ok((builder.ins().bint(I64, tmp), Type::Integer))
                     }
-                    (Type::String, BinOp::Add, Type::String) => todo!(),
+                    (Type::String, BinOp::Add, Type::String) => {
+                        let mut sig = self.module.make_signature();
+                        sig.params.push(AbiParam::new(I64));
+                        sig.params.push(AbiParam::new(I64));
+                        sig.returns.push(AbiParam::new(I64));
+                        let string = self.translate_call(
+                            "tiger_strcat",
+                            &sig,
+                            &[lhs_value, rhs_value],
+                            builder,
+                        );
+                        Ok((string, Type::String))
+                    }
                     (Type::String, BinOp::Sub, Type::String) => Err(Error::WrongOperandType(loc)),
                     (Type::String, BinOp::Mul, Type::String) => Err(Error::WrongOperandType(loc)),
                     (Type::String, BinOp::Div, Type::String) => Err(Error::WrongOperandType(loc)),
