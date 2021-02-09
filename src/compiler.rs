@@ -127,6 +127,7 @@ impl Compiler {
         match *rvalue {
             Expr::Integer { value, .. } => Ok((builder.ins().iconst(I64, value), Type::Integer)),
             Expr::BinOp {
+                loc,
                 ref lhs,
                 op,
                 ref rhs,
@@ -136,6 +137,7 @@ impl Compiler {
                     self.handle_rvalue(&**lhs, depth, builder, link, break_block, continue_block)?;
                 let (rhs_value, rhs_type) =
                     self.handle_rvalue(&**rhs, depth, builder, link, break_block, continue_block)?;
+
                 match (lhs_type, op, rhs_type) {
                     (Type::Integer, BinOp::Add, Type::Integer) => {
                         Ok((builder.ins().iadd(lhs_value, rhs_value), Type::Integer))
@@ -155,40 +157,31 @@ impl Compiler {
                     (Type::Integer, BinOp::Or, Type::Integer) => {
                         Ok((builder.ins().bor(lhs_value, rhs_value), Type::Integer))
                     }
-                    (Type::Integer, BinOp::Eq, Type::Integer) => {
-                        let tmp = builder.ins().icmp(IntCC::Equal, lhs_value, rhs_value);
+                    (Type::Integer, _, Type::Integer) => {
+                        let cc = self.translate_rel_op(op);
+                        let tmp = builder.ins().icmp(cc, lhs_value, rhs_value);
                         Ok((builder.ins().bint(I64, tmp), Type::Integer))
                     }
-                    (Type::Integer, BinOp::NE, Type::Integer) => {
-                        let tmp = builder.ins().icmp(IntCC::NotEqual, lhs_value, rhs_value);
-                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
-                    }
-                    (Type::Integer, BinOp::LT, Type::Integer) => {
-                        let tmp = builder
-                            .ins()
-                            .icmp(IntCC::SignedLessThan, lhs_value, rhs_value);
-                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
-                    }
-                    (Type::Integer, BinOp::LE, Type::Integer) => {
-                        let tmp =
-                            builder
-                                .ins()
-                                .icmp(IntCC::SignedLessThanOrEqual, lhs_value, rhs_value);
-                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
-                    }
-                    (Type::Integer, BinOp::GT, Type::Integer) => {
-                        let tmp =
-                            builder
-                                .ins()
-                                .icmp(IntCC::SignedGreaterThan, lhs_value, rhs_value);
-                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
-                    }
-                    (Type::Integer, BinOp::GE, Type::Integer) => {
-                        let tmp = builder.ins().icmp(
-                            IntCC::SignedGreaterThanOrEqual,
-                            lhs_value,
-                            rhs_value,
+                    (Type::String, BinOp::Add, Type::String) => todo!(),
+                    (Type::String, BinOp::Sub, Type::String) => Err(Error::WrongOperandType(loc)),
+                    (Type::String, BinOp::Mul, Type::String) => Err(Error::WrongOperandType(loc)),
+                    (Type::String, BinOp::Div, Type::String) => Err(Error::WrongOperandType(loc)),
+                    (Type::String, BinOp::And, Type::String) => Err(Error::WrongOperandType(loc)),
+                    (Type::String, BinOp::Or, Type::String) => Err(Error::WrongOperandType(loc)),
+                    (Type::String, _, Type::String) => {
+                        let cc = self.translate_rel_op(op);
+                        let mut sig = self.module.make_signature();
+                        sig.params.push(AbiParam::new(I64));
+                        sig.params.push(AbiParam::new(I64));
+                        sig.returns.push(AbiParam::new(I64));
+                        let cmp = self.translate_call(
+                            "tiger_strcmp",
+                            &sig,
+                            &[lhs_value, rhs_value],
+                            builder,
                         );
+                        let zero = builder.ins().iconst(I64, 0);
+                        let tmp = builder.ins().icmp(cc, cmp, zero);
                         Ok((builder.ins().bint(I64, tmp), Type::Integer))
                     }
                     _ => todo!(),
@@ -1132,6 +1125,18 @@ impl Compiler {
             Access::Heap(addr) => {
                 builder.ins().store(MemFlags::new(), value, addr, 0);
             }
+        }
+    }
+
+    fn translate_rel_op(&self, op: BinOp) -> IntCC {
+        match op {
+            BinOp::Eq => IntCC::Equal,
+            BinOp::NE => IntCC::NotEqual,
+            BinOp::LT => IntCC::SignedLessThan,
+            BinOp::LE => IntCC::SignedLessThanOrEqual,
+            BinOp::GT => IntCC::SignedGreaterThan,
+            BinOp::GE => IntCC::SignedGreaterThanOrEqual,
+            _ => panic!(),
         }
     }
 }

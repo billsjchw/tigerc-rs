@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <stdlib.h>
+#include <string.h>
 
 int64_t tiger_main(void);
 
@@ -50,4 +51,29 @@ uint64_t tiger_malloc(uint64_t size) {
     }
 
     return (uint64_t) ptr;
+}
+
+int64_t tiger_strcmp(uint64_t lhs_addr, uint64_t rhs_addr) {
+    uint64_t lhs_len = *(uint64_t *) lhs_addr;
+    uint64_t rhs_len = *(uint64_t *) rhs_addr;
+    char *lhs_str = (char *) lhs_addr + 8;
+    char *rhs_str = (char *) rhs_addr + 8;
+    uint64_t i = 0;
+
+    for (i = 0; i < lhs_len && i < rhs_len; ++i) {
+        if (lhs_str[i] < rhs_str[i]) {
+            return -1;
+        }
+        if (lhs_str[i] > rhs_str[i]) {
+            return 1;
+        }
+    }
+
+    if (lhs_len < rhs_len) {
+        return -1;
+    } else if (lhs_len > rhs_len) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
