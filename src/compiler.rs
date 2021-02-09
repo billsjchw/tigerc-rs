@@ -184,7 +184,23 @@ impl Compiler {
                         let tmp = builder.ins().icmp(cc, cmp, zero);
                         Ok((builder.ins().bint(I64, tmp), Type::Integer))
                     }
-                    _ => todo!(),
+                    (Type::String, BinOp::Add, Type::Integer) => todo!(),
+                    (Type::Integer, BinOp::Add, Type::String) => todo!(),
+                    (Type::Integer, _, _) => Err(Error::WrongOperandType(loc)),
+                    (_, _, Type::Integer) => Err(Error::WrongOperandType(loc)),
+                    (Type::String, _, _) => Err(Error::WrongOperandType(loc)),
+                    (_, _, Type::String) => Err(Error::WrongOperandType(loc)),
+                    (Type::Unit, _, _) => Err(Error::WrongOperandType(loc)),
+                    (_, _, Type::Unit) => Err(Error::WrongOperandType(loc)),
+                    (_, BinOp::Eq, _) if lhs_type == rhs_type => {
+                        let tmp = builder.ins().icmp(IntCC::Equal, lhs_value, rhs_value);
+                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
+                    }
+                    (_, BinOp::NE, _) if lhs_type == rhs_type => {
+                        let tmp = builder.ins().icmp(IntCC::NotEqual, lhs_value, rhs_value);
+                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
+                    }
+                    _ => Err(Error::WrongOperandType(loc)),
                 }
             }
             Expr::UnOp { loc, op, ref expr } => {
