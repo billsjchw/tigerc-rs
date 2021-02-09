@@ -9,6 +9,7 @@ lalrpop_mod!(pub tiger);
 pub mod ast;
 pub mod compiler;
 pub mod error;
+pub mod esc;
 pub mod parser;
 pub mod symtab;
 pub mod util;

@@ -1,9 +1,4 @@
-use crate::{
-    ast::{BinOp, Def, Expr, Type as ASTType},
-    error::Error,
-    parser,
-    symtab::SymbolTable,
-};
+use crate::{ast::{BinOp, Def, Expr, Type as ASTType}, error::Error, esc, parser, symtab::SymbolTable};
 use cranelift::{
     codegen::{
         binemit::NullTrapSink,
@@ -87,7 +82,8 @@ impl Compiler {
     }
 
     pub fn compile(mut self, prog: &str) -> Result<Vec<u8>, Error> {
-        let expr = parser::parse(prog)?;
+        let mut expr = parser::parse(prog)?;
+        esc::find_esc(&mut *expr);
 
         let mut context = self.module.make_context();
         context.func.signature.returns.push(AbiParam::new(I64));

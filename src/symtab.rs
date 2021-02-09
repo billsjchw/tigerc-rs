@@ -24,6 +24,18 @@ impl<K, V> SymbolTable<K, V> {
         None
     }
 
+    pub fn get_mut(&mut self, k: &K) -> Option<&mut V>
+    where
+        K: Hash + Eq,
+    {
+        for map in self.maps.iter_mut().rev() {
+            if let Some(v) = map.get_mut(k) {
+                return Some(v);
+            }
+        }
+        None
+    }
+
     pub fn insert(&mut self, k: K, v: V)
     where
         K: Hash + Eq,
