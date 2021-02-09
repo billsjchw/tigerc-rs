@@ -73,38 +73,40 @@ int64_t tiger_strcmp(uint64_t lhs_addr, uint64_t rhs_addr) {
     }
 }
 
-uint64_t tiger_strint(uint64_t addr, int64_t value) {
-    uint64_t str_len = *(uint64_t *) addr;
-    void *buffer = malloc(str_len + 15);
-    char *int_str = (char *) buffer + 8 + str_len;
-    uint64_t int_str_len = 0;
+uint64_t tiger_strint(uint64_t lhs, int64_t rhs) {
+    uint64_t lhs_len = *(uint64_t *) lhs;
+    char *lhs_str = (char *) lhs + 8;
+    void *result = malloc(lhs_len + 15);
+    char *rhs_str = (char *) result + 8 + lhs_len;
+    uint64_t rhs_len = 0;
 
-    if (buffer == NULL) {
+    if (result == NULL) {
         exit(1);
     }
 
-    memcpy(buffer + 8, (void *) addr + 8, str_len);
-    sprintf(int_str, "%"PRId64, value);
-    int_str_len = strlen(int_str);
-    *(uint64_t *) buffer = str_len + int_str_len;
+    memcpy(result + 8, (void *) lhs_str, lhs_len);
+    sprintf(rhs_str, "%"PRId64, rhs);
+    rhs_len = strlen(rhs_str);
+    *(uint64_t *) result = lhs_len + rhs_len;
 
-    return (uint64_t) buffer;
+    return (uint64_t) result;
 }
 
-uint64_t tiger_intstr(uint64_t addr, int64_t value) {
-    uint64_t str_len = *(uint64_t *) addr;
-    void *buffer = malloc(str_len + 15);
-    char *int_str = (char *) buffer + 8;
-    uint64_t int_str_len = 0;
+uint64_t tiger_intstr(int64_t lhs, uint64_t rhs) {
+    uint64_t rhs_len = *(uint64_t *) rhs;
+    char *rhs_str = (char *) rhs + 8;
+    void *result = malloc(rhs_len + 15);
+    char *lhs_str = (char *) result + 8;
+    uint64_t lhs_len = 0;
 
-    if (buffer == NULL) {
+    if (result == NULL) {
         exit(1);
     }
 
-    sprintf(int_str, "%"PRId64, value);
-    int_str_len = strlen(int_str);
-    memcpy(buffer + 8 + int_str_len, (void *) addr + 8, str_len);
-    *(uint64_t *) buffer = str_len + int_str_len;
+    sprintf(lhs_str, "%"PRId64, lhs);
+    lhs_len = strlen(lhs_str);
+    memcpy(result + 8 + lhs_len, (void *) rhs + 8, rhs_len);
+    *(uint64_t *) result = lhs_len + rhs_len;
 
-    return (uint64_t) buffer;
+    return (uint64_t) result;
 }

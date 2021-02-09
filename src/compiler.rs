@@ -196,7 +196,7 @@ impl Compiler {
                         let string = self.translate_call(
                             "tiger_intstr",
                             &sig,
-                            &[rhs_value, lhs_value],
+                            &[lhs_value, rhs_value],
                             builder,
                         );
                         Ok((string, Type::String))
