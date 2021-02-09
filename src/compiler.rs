@@ -15,7 +15,11 @@ use cranelift::{
 };
 use cranelift_module::{DataContext, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use std::{collections::HashMap, str::FromStr, todo};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    todo,
+};
 use target_lexicon::triple;
 
 pub struct Compiler {
@@ -23,7 +27,8 @@ pub struct Compiler {
     funcs: SymbolTable<String, Func>,
     types: SymbolTable<String, Type>,
     vars: SymbolTable<String, Var>,
-    arrays: HashMap<i32, Type>,
+    array_types: HashMap<i32, ArrayType>,
+    record_types: HashMap<i32, RecordType>,
     seq: i32,
 }
 
@@ -68,13 +73,15 @@ impl Compiler {
 
         let vars = SymbolTable::new();
         let arrays = HashMap::new();
+        let records = HashMap::new();
 
         Self {
             module,
             funcs,
             types,
             vars,
-            arrays,
+            array_types: arrays,
+            record_types: records,
             seq: 0,
         }
     }
@@ -298,7 +305,7 @@ impl Compiler {
             } => {
                 let type_ = *self.types.get(type_).ok_or(Error::UndefType(loc))?;
                 let elem_type = match type_ {
-                    Type::Array(id) => Ok(*self.arrays.get(&id).unwrap()),
+                    Type::Array(id) => Ok(self.array_types.get(&id).unwrap().0),
                     _ => Err(Error::TypeNotArray(loc)),
                 }?;
 
@@ -342,6 +349,79 @@ impl Compiler {
                 Ok((
                     self.translate_load(Access::Heap(addr), depth, builder, link),
                     elem_type,
+                ))
+            }
+            Expr::Record {
+                loc,
+                ref type_,
+                ref elems,
+            } => {
+                let type_ = *self.types.get(type_).ok_or(Error::UndefType(loc))?;
+                let record_type = match type_ {
+                    Type::Record(id) => Ok(self.record_types.get(&id).unwrap()),
+                    _ => Err(Error::TypeNotRecord(loc)),
+                }?
+                .clone();
+
+                let size = builder
+                    .ins()
+                    .iconst(I64, record_type.attr_types.len() as i64 * 8);
+                let mut sig = self.module.make_signature();
+                sig.params.push(AbiParam::new(I64));
+                sig.returns.push(AbiParam::new(I64));
+                let base = self.translate_call("malloc_", &sig, &[size], builder);
+
+                let mut remained_attr_names = record_type
+                    .attr_types
+                    .keys()
+                    .cloned()
+                    .collect::<HashSet<String>>();
+                for (attr, init) in elems.iter() {
+                    let attr_type = *record_type
+                        .attr_types
+                        .get(attr)
+                        .ok_or(Error::RecordInitMismatch(loc))?;
+                    let attr_offset = *record_type.attr_offsets.get(attr).unwrap();
+                    let (init_value, init_type) = self.handle_rvalue(
+                        init,
+                        depth,
+                        builder,
+                        link,
+                        break_block,
+                        continue_block,
+                    )?;
+                    if init_type != attr_type {
+                        return Err(Error::RecordInitMismatch(loc));
+                    }
+                    let addr = builder.ins().iadd_imm(base, attr_offset);
+                    self.translate_store(Access::Heap(addr), init_value, depth, builder, link);
+                    remained_attr_names.remove(attr);
+                }
+
+                if !remained_attr_names.is_empty() {
+                    return Err(Error::RecordInitMismatch(loc));
+                }
+
+                Ok((base, type_))
+            }
+            Expr::Attr {
+                loc,
+                ref record,
+                ref attr,
+            } => {
+                let (addr, attr_type) = self.translate_attr(
+                    &**record,
+                    &attr[..],
+                    loc,
+                    depth,
+                    builder,
+                    link,
+                    break_block,
+                    continue_block,
+                )?;
+                Ok((
+                    self.translate_load(Access::Heap(addr), depth, builder, link),
+                    attr_type,
                 ))
             }
             Expr::String { ref value, .. } => {
@@ -466,7 +546,7 @@ impl Compiler {
                 builder.seal_block(check_block);
                 builder.seal_block(body_block);
                 builder.seal_block(exit_block);
-                
+
                 if test_type != Type::Integer {
                     return Err(Error::WhileTestNotInteger(loc));
                 }
@@ -581,7 +661,40 @@ impl Compiler {
                 )?;
                 Ok((Access::Heap(addr), elem_type))
             }
-            _ => todo!(),
+            Expr::Attr {
+                loc,
+                ref record,
+                ref attr,
+            } => {
+                let (addr, attr_type) = self.translate_attr(
+                    &**record,
+                    &attr[..],
+                    loc,
+                    depth,
+                    builder,
+                    link,
+                    break_block,
+                    continue_block,
+                )?;
+                Ok((Access::Heap(addr), attr_type))
+            }
+            Expr::Array { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::Assign { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::BinOp { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::Break { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::Call { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::Continue { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::Empty { loc } => Err(Error::ExprNotLvalue(loc)),
+            Expr::For { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::If { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::Integer { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::Let { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::Nil { loc } => Err(Error::ExprNotLvalue(loc)),
+            Expr::Record { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::Seq { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::String { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::UnOp { loc, .. } => Err(Error::ExprNotLvalue(loc)),
+            Expr::While { loc, .. } => Err(Error::ExprNotLvalue(loc)),
         }
     }
 
@@ -716,26 +829,38 @@ impl Compiler {
         let mut alias_locs = HashMap::new();
         let mut arrays = HashMap::new();
         let mut array_locs = HashMap::new();
+        let mut records = HashMap::new();
+        let mut record_locs = HashMap::new();
         while let Def::Type {
-            loc,
             ref ident,
             ref type_,
             ..
         } = defs[tail]
         {
             match **type_ {
-                ASTType::Alias { ref type_, .. } => {
+                ASTType::Alias { loc, ref type_, .. } => {
                     aliases.insert(ident.clone(), type_.clone());
                     alias_locs.insert(ident.clone(), loc);
                 }
-                ASTType::Array { ref elem_type, .. } => {
+                ASTType::Array {
+                    loc, ref elem_type, ..
+                } => {
                     self.seq += 1;
                     arrays.insert(self.seq, elem_type.clone());
                     array_locs.insert(self.seq, loc);
                     self.types.insert(ident.clone(), Type::Array(self.seq));
                     aliases.remove(ident);
                 }
-                _ => todo!(),
+                ASTType::Record { loc, ref attrs, .. } => {
+                    self.seq += 1;
+                    records.insert(
+                        self.seq,
+                        attrs.iter().cloned().collect::<HashMap<String, String>>(),
+                    );
+                    record_locs.insert(self.seq, loc);
+                    self.types.insert(ident.clone(), Type::Record(self.seq));
+                    aliases.remove(ident);
+                }
             }
             tail += 1;
             if tail == defs.len() {
@@ -767,10 +892,28 @@ impl Compiler {
             self.types.insert(ident, type_);
         }
 
-        for (id, elem_type) in arrays.iter() {
-            let loc = *array_locs.get(id).unwrap();
-            let elem_type = self.types.get(elem_type).ok_or(Error::UndefType(loc))?;
-            self.arrays.insert(*id, *elem_type);
+        for (&id, elem_type) in arrays.iter() {
+            let loc = *array_locs.get(&id).unwrap();
+            let elem_type = *self.types.get(elem_type).ok_or(Error::UndefType(loc))?;
+            self.array_types.insert(id, ArrayType(elem_type));
+        }
+
+        for (&id, attr_types) in records.iter() {
+            let loc = *record_locs.get(&id).unwrap();
+            let mut record_type = RecordType {
+                attr_types: HashMap::new(),
+                attr_offsets: HashMap::new(),
+            };
+            let mut offset = 0;
+            for (attr, attr_type) in attr_types.iter() {
+                let attr_type = self.types.get(attr_type).ok_or(Error::UndefType(loc))?;
+                record_type.attr_types.insert(attr.clone(), *attr_type);
+                if !record_type.attr_offsets.contains_key(attr) {
+                    record_type.attr_offsets.insert(attr.clone(), offset);
+                    offset += 8;
+                }
+            }
+            self.record_types.insert(id, record_type);
         }
 
         if tail > 0 {
@@ -859,8 +1002,8 @@ impl Compiler {
             self.handle_rvalue(index, depth, builder, link, break_block, continue_block)?;
 
         let elem_type = match array_type {
-            Type::Array(id) => Ok(*self.arrays.get(&id).unwrap()),
-            _ => Err(Error::ArrayNotArray(loc)),
+            Type::Array(id) => Ok(self.array_types.get(&id).unwrap().0),
+            _ => Err(Error::ExprNotArray(loc)),
         }?;
         if index_type != Type::Integer {
             return Err(Error::IndexNotInteger(loc));
@@ -868,6 +1011,33 @@ impl Compiler {
 
         let offset = builder.ins().imul_imm(index_value, 8);
         Ok((builder.ins().iadd(array_value, offset), elem_type))
+    }
+
+    fn translate_attr(
+        &mut self,
+        record: &Expr,
+        attr: &str,
+        loc: (usize, usize),
+        depth: i32,
+        builder: &mut FunctionBuilder,
+        link: StackSlot,
+        break_block: Option<Block>,
+        continue_block: Option<Block>,
+    ) -> Result<(Value, Type), Error> {
+        let (record_value, record_type) =
+            self.handle_rvalue(record, depth, builder, link, break_block, continue_block)?;
+
+        let record_type = match record_type {
+            Type::Record(id) => Ok(self.record_types.get(&id).unwrap()),
+            _ => Err(Error::ExprNotRecord(loc)),
+        }?;
+
+        let attr_type = *record_type
+            .attr_types
+            .get(attr)
+            .ok_or(Error::AttrNotFound(loc))?;
+        let attr_offset = *record_type.attr_offsets.get(attr).unwrap();
+        Ok((builder.ins().iadd_imm(record_value, attr_offset), attr_type))
     }
 
     fn new_var(&mut self, esc: bool, depth: i32, builder: &mut FunctionBuilder) -> Access {
@@ -947,6 +1117,7 @@ enum Type {
     Unit,
     Nil,
     Array(i32),
+    Record(i32),
 }
 
 impl Default for Type {
@@ -965,9 +1136,20 @@ impl PartialEq for Type {
             (Type::Nil, Type::Array(_)) => true,
             (Type::Array(_), Type::Nil) => true,
             (Type::Array(id), Type::Array(other_id)) => id == other_id,
+            (Type::Nil, Type::Record(_)) => true,
+            (Type::Record(_), Type::Nil) => true,
+            (Type::Record(id), Type::Record(other_id)) => id == other_id,
             _ => false,
         }
     }
+}
+
+struct ArrayType(Type);
+
+#[derive(Clone)]
+struct RecordType {
+    attr_types: HashMap<String, Type>,
+    attr_offsets: HashMap<String, i64>,
 }
 
 #[derive(Clone, Default)]
