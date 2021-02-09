@@ -18,4 +18,6 @@ pub enum Error {
     AssignToReadonly((usize, usize)),
     IfTestNotInteger((usize, usize)),
     IfMismatch((usize, usize)),
+    BreakOutsideLoop((usize, usize)),
+    ContinueOutsideLoop((usize, usize)),
 }

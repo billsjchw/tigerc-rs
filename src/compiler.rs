@@ -90,7 +90,7 @@ impl Compiler {
         builder.switch_to_block(entry_block);
         builder.seal_block(entry_block);
         let link = builder.create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8));
-        self.handle_rvalue(&*expr, 0, &mut builder, link)?;
+        self.handle_rvalue(&*expr, 0, &mut builder, link, None, None)?;
         let ret = builder.ins().iconst(I64, 0);
         builder.ins().return_(&[ret]);
         builder.finalize();
@@ -113,6 +113,8 @@ impl Compiler {
         depth: i32,
         builder: &mut FunctionBuilder,
         link: StackSlot,
+        break_block: Option<Block>,
+        continue_block: Option<Block>,
     ) -> Result<(Value, Type), Error> {
         match *rvalue {
             Expr::Integer { value, .. } => Ok((builder.ins().iconst(I64, value), Type::Integer)),
@@ -122,8 +124,10 @@ impl Compiler {
                 ref rhs,
                 ..
             } => {
-                let (lhs_value, lhs_type) = self.handle_rvalue(&**lhs, depth, builder, link)?;
-                let (rhs_value, rhs_type) = self.handle_rvalue(&**rhs, depth, builder, link)?;
+                let (lhs_value, lhs_type) =
+                    self.handle_rvalue(&**lhs, depth, builder, link, break_block, continue_block)?;
+                let (rhs_value, rhs_type) =
+                    self.handle_rvalue(&**rhs, depth, builder, link, break_block, continue_block)?;
                 match (lhs_type, op, rhs_type) {
                     (Type::Integer, BinOp::Add, Type::Integer) => {
                         Ok((builder.ins().iadd(lhs_value, rhs_value), Type::Integer))
@@ -199,7 +203,8 @@ impl Compiler {
                     arg_values.push(self.walk_link(depth - func.depth + 1, builder, link));
                 }
                 for arg in args.iter() {
-                    let (arg_value, arg_type) = self.handle_rvalue(arg, depth, builder, link)?;
+                    let (arg_value, arg_type) =
+                        self.handle_rvalue(arg, depth, builder, link, break_block, continue_block)?;
                     arg_values.push(arg_value);
                     arg_types.push(arg_type);
                 }
@@ -224,8 +229,9 @@ impl Compiler {
                 self.funcs.enter_scope();
                 self.types.enter_scope();
                 self.vars.enter_scope();
-                self.handle_defs(&defs[..], depth, builder, link)?;
-                let (value, type_) = self.handle_rvalue(&**body, depth, builder, link)?;
+                self.handle_defs(&defs[..], depth, builder, link, break_block, continue_block)?;
+                let (value, type_) =
+                    self.handle_rvalue(&**body, depth, builder, link, break_block, continue_block)?;
                 self.funcs.exit_scope();
                 self.types.exit_scope();
                 self.vars.exit_scope();
@@ -237,9 +243,9 @@ impl Compiler {
                 ..
             } => {
                 for expr in exprs.iter() {
-                    self.handle_rvalue(expr, depth, builder, link)?;
+                    self.handle_rvalue(expr, depth, builder, link, break_block, continue_block)?;
                 }
-                self.handle_rvalue(expr, depth, builder, link)
+                self.handle_rvalue(expr, depth, builder, link, break_block, continue_block)
             }
             Expr::Empty { .. } => {
                 let value = builder.ins().iconst(I64, 0);
@@ -258,10 +264,22 @@ impl Compiler {
                 ref rvalue,
                 ..
             } => {
-                let (lvalue_access, lvalue_type) =
-                    self.handle_lvalue(&**lvalue, depth, builder, link)?;
-                let (rvalue_value, rvalue_type) =
-                    self.handle_rvalue(&**rvalue, depth, builder, link)?;
+                let (lvalue_access, lvalue_type) = self.handle_lvalue(
+                    &**lvalue,
+                    depth,
+                    builder,
+                    link,
+                    break_block,
+                    continue_block,
+                )?;
+                let (rvalue_value, rvalue_type) = self.handle_rvalue(
+                    &**rvalue,
+                    depth,
+                    builder,
+                    link,
+                    break_block,
+                    continue_block,
+                )?;
 
                 if lvalue_type != rvalue_type {
                     return Err(Error::AssignMismatch(loc));
@@ -284,8 +302,10 @@ impl Compiler {
                     _ => Err(Error::TypeNotArray(loc)),
                 }?;
 
-                let (size_value, size_type) = self.handle_rvalue(&**size, depth, builder, link)?;
-                let (init_value, init_type) = self.handle_rvalue(&**init, depth, builder, link)?;
+                let (size_value, size_type) =
+                    self.handle_rvalue(&**size, depth, builder, link, break_block, continue_block)?;
+                let (init_value, init_type) =
+                    self.handle_rvalue(&**init, depth, builder, link, break_block, continue_block)?;
 
                 if init_type != elem_type {
                     return Err(Error::ArrayInitMismatch(loc));
@@ -309,8 +329,16 @@ impl Compiler {
                 ref array,
                 ref index,
             } => {
-                let (addr, elem_type) =
-                    self.translate_index(&**array, &**index, loc, depth, builder, link)?;
+                let (addr, elem_type) = self.translate_index(
+                    &**array,
+                    &**index,
+                    loc,
+                    depth,
+                    builder,
+                    link,
+                    break_block,
+                    continue_block,
+                )?;
                 Ok((
                     self.translate_load(Access::Heap(addr), depth, builder, link),
                     elem_type,
@@ -344,8 +372,10 @@ impl Compiler {
                 ref high,
                 ref body,
             } => {
-                let (low_value, low_type) = self.handle_rvalue(&**low, depth, builder, link)?;
-                let (high_value, high_type) = self.handle_rvalue(&**high, depth, builder, link)?;
+                let (low_value, low_type) =
+                    self.handle_rvalue(&**low, depth, builder, link, break_block, continue_block)?;
+                let (high_value, high_type) =
+                    self.handle_rvalue(&**high, depth, builder, link, break_block, continue_block)?;
 
                 if low_type != Type::Integer || high_type != Type::Integer {
                     return Err(Error::ForBoundNotInteger(loc));
@@ -355,6 +385,7 @@ impl Compiler {
 
                 let inc_block = builder.create_block();
                 let body_block = builder.create_block();
+                let check_block = builder.create_block();
                 let exit_block = builder.create_block();
 
                 self.vars.enter_scope();
@@ -375,7 +406,16 @@ impl Compiler {
                 builder.ins().brz(tmp, exit_block, &[]);
                 builder.ins().jump(body_block, &[]);
                 builder.switch_to_block(body_block);
-                self.handle_rvalue(&**body, depth, builder, link)?;
+                self.handle_rvalue(
+                    &**body,
+                    depth,
+                    builder,
+                    link,
+                    Some(exit_block),
+                    Some(check_block),
+                )?;
+                builder.ins().jump(check_block, &[]);
+                builder.switch_to_block(check_block);
                 let cnt = self.translate_load(access, depth, builder, link);
                 let tmp = builder.ins().icmp(IntCC::SignedLessThan, cnt, high_value);
                 builder.ins().brnz(tmp, inc_block, &[]);
@@ -391,6 +431,7 @@ impl Compiler {
 
                 builder.seal_block(inc_block);
                 builder.seal_block(body_block);
+                builder.seal_block(check_block);
                 builder.seal_block(exit_block);
 
                 Ok((builder.ins().iconst(I64, 0), Type::Unit))
@@ -401,7 +442,8 @@ impl Compiler {
                 ref then,
                 ref orelse,
             } => {
-                let (test_value, test_type) = self.handle_rvalue(&**test, depth, builder, link)?;
+                let (test_value, test_type) =
+                    self.handle_rvalue(&**test, depth, builder, link, break_block, continue_block)?;
 
                 if test_type != Type::Integer {
                     return Err(Error::IfTestNotInteger(loc));
@@ -416,12 +458,19 @@ impl Compiler {
                 builder.ins().brnz(test_value, then_block, &[]);
                 builder.ins().jump(orelse_block, &[]);
                 builder.switch_to_block(then_block);
-                let (then_value, then_type) = self.handle_rvalue(&**then, depth, builder, link)?;
+                let (then_value, then_type) =
+                    self.handle_rvalue(&**then, depth, builder, link, break_block, continue_block)?;
                 builder.ins().jump(merge_block, &[then_value]);
 
                 builder.switch_to_block(orelse_block);
-                let (orelse_value, orelse_type) =
-                    self.handle_rvalue(&**orelse, depth, builder, link)?;
+                let (orelse_value, orelse_type) = self.handle_rvalue(
+                    &**orelse,
+                    depth,
+                    builder,
+                    link,
+                    break_block,
+                    continue_block,
+                )?;
                 builder.ins().jump(merge_block, &[orelse_value]);
                 builder.switch_to_block(merge_block);
 
@@ -435,6 +484,26 @@ impl Compiler {
 
                 Ok((builder.block_params(merge_block)[0], then_type))
             }
+            Expr::Break { loc } => match break_block {
+                Some(break_block) => {
+                    builder.ins().jump(break_block, &[]);
+                    let unreachable_block = builder.create_block();
+                    builder.seal_block(unreachable_block);
+                    builder.switch_to_block(unreachable_block);
+                    Ok((builder.ins().iconst(I64, 0), Type::Unit))
+                }
+                None => Err(Error::BreakOutsideLoop(loc)),
+            },
+            Expr::Continue { loc } => match continue_block {
+                Some(continue_block) => {
+                    builder.ins().jump(continue_block, &[]);
+                    let unreachable_block = builder.create_block();
+                    builder.seal_block(unreachable_block);
+                    builder.switch_to_block(unreachable_block);
+                    Ok((builder.ins().iconst(I64, 0), Type::Unit))
+                }
+                None => Err(Error::ContinueOutsideLoop(loc)),
+            },
             _ => todo!(),
         }
     }
@@ -445,6 +514,8 @@ impl Compiler {
         depth: i32,
         builder: &mut FunctionBuilder,
         link: StackSlot,
+        break_block: Option<Block>,
+        continue_block: Option<Block>,
     ) -> Result<(Access, Type), Error> {
         match *lvalue {
             Expr::Ident { loc, ref ident } => {
@@ -461,8 +532,16 @@ impl Compiler {
                 ref array,
                 ref index,
             } => {
-                let (addr, elem_type) =
-                    self.translate_index(&**array, &**index, loc, depth, builder, link)?;
+                let (addr, elem_type) = self.translate_index(
+                    &**array,
+                    &**index,
+                    loc,
+                    depth,
+                    builder,
+                    link,
+                    break_block,
+                    continue_block,
+                )?;
                 Ok((Access::Heap(addr), elem_type))
             }
             _ => todo!(),
@@ -475,6 +554,8 @@ impl Compiler {
         depth: i32,
         builder: &mut FunctionBuilder,
         link: StackSlot,
+        break_block: Option<Block>,
+        continue_block: Option<Block>,
     ) -> Result<(), Error> {
         if defs.len() == 0 {
             return Ok(());
@@ -558,7 +639,7 @@ impl Compiler {
             }
 
             let (ret_value, ret_type) =
-                self.handle_rvalue(&**body, depth + 1, &mut builder, link)?;
+                self.handle_rvalue(&**body, depth + 1, &mut builder, link, None, None)?;
 
             self.vars.exit_scope();
 
@@ -583,7 +664,14 @@ impl Compiler {
         }
 
         if tail > 0 {
-            return self.handle_defs(&defs[tail..], depth, builder, link);
+            return self.handle_defs(
+                &defs[tail..],
+                depth,
+                builder,
+                link,
+                break_block,
+                continue_block,
+            );
         }
 
         let mut tail = 0;
@@ -649,7 +737,14 @@ impl Compiler {
         }
 
         if tail > 0 {
-            return self.handle_defs(&defs[tail..], depth, builder, link);
+            return self.handle_defs(
+                &defs[tail..],
+                depth,
+                builder,
+                link,
+                break_block,
+                continue_block,
+            );
         }
 
         if let Def::Var {
@@ -660,7 +755,8 @@ impl Compiler {
             ref init,
         } = defs[0]
         {
-            let (init_value, init_type) = self.handle_rvalue(&**init, depth, builder, link)?;
+            let (init_value, init_type) =
+                self.handle_rvalue(&**init, depth, builder, link, break_block, continue_block)?;
 
             if let Some(ref type_) = *type_ {
                 let type_ = *self.types.get(type_).ok_or(Error::UndefType(loc))?;
@@ -682,7 +778,14 @@ impl Compiler {
             );
         }
 
-        self.handle_defs(&defs[1..], depth, builder, link)
+        self.handle_defs(
+            &defs[1..],
+            depth,
+            builder,
+            link,
+            break_block,
+            continue_block,
+        )
     }
 
     fn translate_call(
@@ -710,9 +813,13 @@ impl Compiler {
         depth: i32,
         builder: &mut FunctionBuilder,
         link: StackSlot,
+        break_block: Option<Block>,
+        continue_block: Option<Block>,
     ) -> Result<(Value, Type), Error> {
-        let (array_value, array_type) = self.handle_rvalue(array, depth, builder, link)?;
-        let (index_value, index_type) = self.handle_rvalue(index, depth, builder, link)?;
+        let (array_value, array_type) =
+            self.handle_rvalue(array, depth, builder, link, break_block, continue_block)?;
+        let (index_value, index_type) =
+            self.handle_rvalue(index, depth, builder, link, break_block, continue_block)?;
 
         let elem_type = match array_type {
             Type::Array(id) => Ok(*self.arrays.get(&id).unwrap()),
