@@ -142,10 +142,18 @@ impl Compiler {
                         Ok((builder.ins().udiv(lhs_value, rhs_value), Type::Integer))
                     }
                     (Type::Integer, BinOp::And, Type::Integer) => {
-                        Ok((builder.ins().band(lhs_value, rhs_value), Type::Integer))
+                        let lhs_cmp = builder.ins().icmp_imm(IntCC::NotEqual, lhs_value, 0);
+                        let rhs_cmp = builder.ins().icmp_imm(IntCC::NotEqual, rhs_value, 0);
+                        let lhs_int = builder.ins().bint(I64, lhs_cmp);
+                        let rhs_int = builder.ins().bint(I64, rhs_cmp);
+                        Ok((builder.ins().band(lhs_int, rhs_int), Type::Integer))
                     }
                     (Type::Integer, BinOp::Or, Type::Integer) => {
-                        Ok((builder.ins().bor(lhs_value, rhs_value), Type::Integer))
+                        let lhs_cmp = builder.ins().icmp_imm(IntCC::NotEqual, lhs_value, 0);
+                        let rhs_cmp = builder.ins().icmp_imm(IntCC::NotEqual, rhs_value, 0);
+                        let lhs_int = builder.ins().bint(I64, lhs_cmp);
+                        let rhs_int = builder.ins().bint(I64, rhs_cmp);
+                        Ok((builder.ins().bor(lhs_int, rhs_int), Type::Integer))
                     }
                     (Type::Integer, _, Type::Integer) => {
                         let cc = self.translate_rel_op(op);
@@ -182,8 +190,7 @@ impl Compiler {
                             &[lhs_value, rhs_value],
                             builder,
                         );
-                        let zero = builder.ins().iconst(I64, 0);
-                        let tmp = builder.ins().icmp(cc, cmp, zero);
+                        let tmp = builder.ins().icmp_imm(cc, cmp, 0);
                         Ok((builder.ins().bint(I64, tmp), Type::Integer))
                     }
                     (Type::String, BinOp::Add, Type::Integer) => {
@@ -238,7 +245,8 @@ impl Compiler {
                         Ok((builder.ins().ineg(expr_value), Type::Integer))
                     }
                     (UnOp::Not, Type::Integer) => {
-                        Ok((builder.ins().bnot(expr_value), Type::Integer))
+                        let tmp = builder.ins().icmp_imm(IntCC::Equal, expr_value, 0);
+                        Ok((builder.ins().bint(I64, tmp), Type::Integer))
                     }
                     _ => Err(Error::WrongOperandType(loc)),
                 }
