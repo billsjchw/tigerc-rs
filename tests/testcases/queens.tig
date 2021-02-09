@@ -1,0 +1,42 @@
+/* 8-queens problem */
+let
+    type IntArray = array of int
+    
+    var N := 8
+    
+    var row_flags := IntArray {0; N}
+    var cols := IntArray {0; N}
+    var diag1_flags := IntArray {0; 2 * N - 1}
+    var diag2_flags := IntArray {0; 2 * N - 1}
+    
+    function print_board() = (
+        for i := 0 to N - 1 do (
+            for j := 0 to N - 1 do (
+                print(if cols[i] = j then (" O") else (" ."));
+            );
+            print("\n");
+        );
+        print("\n");
+    )
+
+    function try(j: int) = (
+        if j = N then (
+            print_board();
+        ) else (
+            for i := 0 to N - 1 do (
+                if ~row_flags[i] & ~diag1_flags[i + j] & ~diag2_flags[i - j + N - 1] then (
+                    row_flags[i] := 1;
+                    diag1_flags[i + j] := 1;
+                    diag2_flags[i - j + N - 1] := 1;
+                    cols[j] := i;
+                    try(j + 1);
+                    row_flags[i] := 0;
+                    diag1_flags[i + j] := 0;
+                    diag2_flags[i - j + N - 1] := 0;
+                );
+            );
+        );
+    )
+in
+    try(0);
+end
