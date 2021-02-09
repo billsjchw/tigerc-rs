@@ -49,15 +49,6 @@ impl Compiler {
 
         let mut funcs = SymbolTable::new();
         funcs.insert(
-            String::from("printi"),
-            Func {
-                name: String::from("tiger_printi"),
-                param_types: vec![Type::Integer],
-                ret_type: Type::Unit,
-                depth: 0,
-            },
-        );
-        funcs.insert(
             String::from("print"),
             Func {
                 name: String::from("tiger_print"),
@@ -184,8 +175,32 @@ impl Compiler {
                         let tmp = builder.ins().icmp(cc, cmp, zero);
                         Ok((builder.ins().bint(I64, tmp), Type::Integer))
                     }
-                    (Type::String, BinOp::Add, Type::Integer) => todo!(),
-                    (Type::Integer, BinOp::Add, Type::String) => todo!(),
+                    (Type::String, BinOp::Add, Type::Integer) => {
+                        let mut sig = self.module.make_signature();
+                        sig.params.push(AbiParam::new(I64));
+                        sig.params.push(AbiParam::new(I64));
+                        sig.returns.push(AbiParam::new(I64));
+                        let string = self.translate_call(
+                            "tiger_strint",
+                            &sig,
+                            &[lhs_value, rhs_value],
+                            builder,
+                        );
+                        Ok((string, Type::String))
+                    }
+                    (Type::Integer, BinOp::Add, Type::String) => {
+                        let mut sig = self.module.make_signature();
+                        sig.params.push(AbiParam::new(I64));
+                        sig.params.push(AbiParam::new(I64));
+                        sig.returns.push(AbiParam::new(I64));
+                        let string = self.translate_call(
+                            "tiger_intstr",
+                            &sig,
+                            &[rhs_value, lhs_value],
+                            builder,
+                        );
+                        Ok((string, Type::String))
+                    }
                     (Type::Integer, _, _) => Err(Error::WrongOperandType(loc)),
                     (_, _, Type::Integer) => Err(Error::WrongOperandType(loc)),
                     (Type::String, _, _) => Err(Error::WrongOperandType(loc)),

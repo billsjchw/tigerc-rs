@@ -23,11 +23,6 @@ int64_t tiger_print(uint64_t addr) {
     return 0;
 }
 
-int64_t tiger_printi(int64_t value) {
-    printf("%"PRId64, value);
-    return 0;
-}
-
 uint64_t tiger_make_array(uint64_t size, int64_t init) {
     int64_t *array = calloc(size, 8);
     uint64_t i = 0;
@@ -76,4 +71,40 @@ int64_t tiger_strcmp(uint64_t lhs_addr, uint64_t rhs_addr) {
     } else {
         return 0;
     }
+}
+
+uint64_t tiger_strint(uint64_t addr, int64_t value) {
+    uint64_t str_len = *(uint64_t *) addr;
+    void *buffer = malloc(str_len + 15);
+    char *int_str = (char *) buffer + 8 + str_len;
+    uint64_t int_str_len = 0;
+
+    if (buffer == NULL) {
+        exit(1);
+    }
+
+    memcpy(buffer + 8, (void *) addr + 8, str_len);
+    sprintf(int_str, "%"PRId64, value);
+    int_str_len = strlen(int_str);
+    *(uint64_t *) buffer = str_len + int_str_len;
+
+    return (uint64_t) buffer;
+}
+
+uint64_t tiger_intstr(uint64_t addr, int64_t value) {
+    uint64_t str_len = *(uint64_t *) addr;
+    void *buffer = malloc(str_len + 15);
+    char *int_str = (char *) buffer + 8;
+    uint64_t int_str_len = 0;
+
+    if (buffer == NULL) {
+        exit(1);
+    }
+
+    sprintf(int_str, "%"PRId64, value);
+    int_str_len = strlen(int_str);
+    memcpy(buffer + 8 + int_str_len, (void *) addr + 8, str_len);
+    *(uint64_t *) buffer = str_len + int_str_len;
+
+    return (uint64_t) buffer;
 }
