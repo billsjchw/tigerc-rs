@@ -436,6 +436,43 @@ impl Compiler {
 
                 Ok((builder.ins().iconst(I64, 0), Type::Unit))
             }
+            Expr::While {
+                loc,
+                ref test,
+                ref body,
+            } => {
+                let check_block = builder.create_block();
+                let body_block = builder.create_block();
+                let exit_block = builder.create_block();
+
+                builder.ins().jump(check_block, &[]);
+                builder.switch_to_block(check_block);
+                let (test_value, test_type) =
+                    self.handle_rvalue(&**test, depth, builder, link, break_block, continue_block)?;
+                builder.ins().brz(test_value, exit_block, &[]);
+                builder.ins().jump(body_block, &[]);
+                builder.switch_to_block(body_block);
+                self.handle_rvalue(
+                    &**body,
+                    depth,
+                    builder,
+                    link,
+                    Some(exit_block),
+                    Some(check_block),
+                )?;
+                builder.ins().jump(check_block, &[]);
+                builder.switch_to_block(exit_block);
+
+                builder.seal_block(check_block);
+                builder.seal_block(body_block);
+                builder.seal_block(exit_block);
+                
+                if test_type != Type::Integer {
+                    return Err(Error::WhileTestNotInteger(loc));
+                }
+
+                Ok((builder.ins().iconst(I64, 0), Type::Unit))
+            }
             Expr::If {
                 loc,
                 ref test,
