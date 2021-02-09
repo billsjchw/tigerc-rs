@@ -1,4 +1,9 @@
-use crate::{ast::{BinOp, Def, Expr, Type as ASTType}, error::Error, esc, parser, symtab::SymbolTable};
+use crate::{
+    ast::{BinOp, Def, Expr, Type as ASTType, UnOp},
+    error::Error,
+    esc, parser,
+    symtab::SymbolTable,
+};
 use cranelift::{
     codegen::{
         binemit::NullTrapSink,
@@ -123,7 +128,7 @@ impl Compiler {
             Expr::Integer { value, .. } => Ok((builder.ins().iconst(I64, value), Type::Integer)),
             Expr::BinOp {
                 ref lhs,
-                ref op,
+                op,
                 ref rhs,
                 ..
             } => {
@@ -187,6 +192,20 @@ impl Compiler {
                         Ok((builder.ins().bint(I64, tmp), Type::Integer))
                     }
                     _ => todo!(),
+                }
+            }
+            Expr::UnOp { loc, op, ref expr } => {
+                let (expr_value, expr_type) =
+                    self.handle_rvalue(&**expr, depth, builder, link, break_block, continue_block)?;
+                match (op, expr_type) {
+                    (UnOp::Pos, Type::Integer) => Ok((expr_value, Type::Integer)),
+                    (UnOp::Neg, Type::Integer) => {
+                        Ok((builder.ins().ineg(expr_value), Type::Integer))
+                    }
+                    (UnOp::Not, Type::Integer) => {
+                        Ok((builder.ins().bnot(expr_value), Type::Integer))
+                    }
+                    _ => Err(Error::WrongOperandType(loc)),
                 }
             }
             Expr::Call {
@@ -323,7 +342,12 @@ impl Compiler {
                 sig.returns.push(AbiParam::new(I64));
 
                 Ok((
-                    self.translate_call("tiger_make_array", &sig, &[size_value, init_value], builder),
+                    self.translate_call(
+                        "tiger_make_array",
+                        &sig,
+                        &[size_value, init_value],
+                        builder,
+                    ),
                     type_,
                 ))
             }
@@ -617,7 +641,6 @@ impl Compiler {
                 }
                 None => Err(Error::ContinueOutsideLoop(loc)),
             },
-            _ => todo!(),
         }
     }
 

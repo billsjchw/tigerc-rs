@@ -27,4 +27,5 @@ pub enum Error {
     BreakOutsideLoop((usize, usize)),
     ContinueOutsideLoop((usize, usize)),
     ExprNotLvalue((usize, usize)),
+    WrongOperandType((usize, usize)),
 }

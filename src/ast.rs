@@ -137,7 +137,7 @@ pub enum Type {
     },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinOp {
     Add,
     Sub,
@@ -153,7 +153,7 @@ pub enum BinOp {
     GE,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum UnOp {
     Pos,
     Neg,
