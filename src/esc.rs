@@ -151,8 +151,10 @@ fn handle_def<'a>(def: &'a mut Def, depth: i32, vars: &mut SymbolTable<String, V
         Def::Var {
             ref ident,
             ref mut esc,
+            ref mut init,
             ..
         } => {
+            handle_expr(&mut **init, depth, vars);
             *esc = false;
             vars.insert(ident.clone(), Var { depth, esc });
         }
