@@ -51,7 +51,7 @@ impl Compiler {
         funcs.insert(
             String::from("printi"),
             Func {
-                name: String::from("printi"),
+                name: String::from("tiger_printi"),
                 param_types: vec![Type::Integer],
                 ret_type: Type::Unit,
                 depth: 0,
@@ -60,7 +60,7 @@ impl Compiler {
         funcs.insert(
             String::from("print"),
             Func {
-                name: String::from("print"),
+                name: String::from("tiger_print"),
                 param_types: vec![Type::String],
                 ret_type: Type::Unit,
                 depth: 0,
@@ -103,7 +103,7 @@ impl Compiler {
         builder.finalize();
         let id = self
             .module
-            .declare_function("tigermain", Linkage::Export, &context.func.signature)
+            .declare_function("tiger_main", Linkage::Export, &context.func.signature)
             .unwrap();
         self.module
             .define_function(id, &mut context, &mut NullTrapSink {})
@@ -327,7 +327,7 @@ impl Compiler {
                 sig.returns.push(AbiParam::new(I64));
 
                 Ok((
-                    self.translate_call("make_array", &sig, &[size_value, init_value], builder),
+                    self.translate_call("tiger_make_array", &sig, &[size_value, init_value], builder),
                     type_,
                 ))
             }
@@ -369,7 +369,7 @@ impl Compiler {
                 let mut sig = self.module.make_signature();
                 sig.params.push(AbiParam::new(I64));
                 sig.returns.push(AbiParam::new(I64));
-                let base = self.translate_call("malloc_", &sig, &[size], builder);
+                let base = self.translate_call("tiger_malloc", &sig, &[size], builder);
 
                 let mut remained_attr_names = record_type
                     .attr_types
@@ -430,7 +430,7 @@ impl Compiler {
                 contents.append(&mut value.as_bytes().to_vec());
 
                 self.seq += 1;
-                let name = format!("string{}", self.seq);
+                let name = format!("tiger_string{}", self.seq);
 
                 let mut context = DataContext::new();
                 context.define(contents.into_boxed_slice());
@@ -723,7 +723,7 @@ impl Compiler {
         {
             let mut func: Func = Default::default();
             self.seq += 1;
-            func.name = format!("{}{}", ident, self.seq);
+            func.name = format!("tiger_{}{}", ident, self.seq);
             for (_, param_type) in params.iter() {
                 func.param_types
                     .push(*self.types.get(param_type).ok_or(Error::UndefType(loc))?);
@@ -946,7 +946,7 @@ impl Compiler {
                     }
                 }
                 None => {
-                    if init_type == Type::Nil {
+                    if let Type::Nil = init_type {
                         return Err(Error::NilVarInitWithoutType(loc));
                     }
                 }
@@ -1139,7 +1139,7 @@ impl PartialEq for Type {
             (Type::Integer, Type::Integer) => true,
             (Type::String, Type::String) => true,
             (Type::Unit, Type::Unit) => true,
-            (Type::Nil, Type::Nil) => true,
+            (Type::Nil, Type::Nil) => false,
             (Type::Nil, Type::Array(_)) => true,
             (Type::Array(_), Type::Nil) => true,
             (Type::Array(id), Type::Array(other_id)) => id == other_id,
