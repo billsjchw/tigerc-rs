@@ -64,8 +64,17 @@ mod tests {
 
     #[test]
     fn test_parse_string_literal() {
-        assert_eq!(parse_string_literal("\"123\\n\\t\\\"\\\\xyz\""), "123\n\t\"\\xyz");
-        assert_eq!(parse_string_literal("\"\\110\\145\\154\\154\\157\""), "Hello");
-        assert_eq!(parse_string_literal("\"Hello,\\\n\t  \\ world!\""), "Hello, world!");
+        assert_eq!(
+            parse_string_literal("\"123\\n\\t\\\"\\\\xyz\""),
+            "123\n\t\"\\xyz"
+        );
+        assert_eq!(
+            parse_string_literal("\"\\110\\145\\154\\154\\157\""),
+            "Hello"
+        );
+        assert_eq!(
+            parse_string_literal("\"Hello,\\\n\t  \\ world!\""),
+            "Hello, world!"
+        );
     }
 }

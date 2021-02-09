@@ -102,7 +102,7 @@ pub enum Def {
     Func {
         loc: (usize, usize),
         ident: String,
-        ret: Option<String>,
+        ret_type: Option<String>,
         params: Vec<(String, String)>,
         escs: Vec<bool>,
         body: Box<Expr>,
@@ -133,7 +133,7 @@ pub enum Type {
     },
     Array {
         loc: (usize, usize),
-        elem: String,
+        elem_type: String,
     },
 }
 

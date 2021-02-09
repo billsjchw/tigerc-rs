@@ -127,8 +127,8 @@ Def: Box<Def> = {
     <l:@L> VAR <ident:IDENT> ASSIGN <init:Expr> <r:@R> => Box::new(Def::Var { loc: (l, r), ident: String::from(ident), esc: true, type_: None, init }),
     <l:@L> VAR <ident:IDENT> COLON <type_:IDENT> ASSIGN <init:Expr> <r:@R> => Box::new(Def::Var { loc: (l, r), ident: String::from(ident), esc: true, type_: Some(String::from(type_)), init }),
     <l:@L> TYPE <ident:IDENT> EQ <type_:Type> <r:@R> => Box::new(Def::Type { loc: (l, r), ident: String::from(ident), type_ }),
-    <l:@L> FUNC <ident:IDENT> LPAREN <params:TypeBindingList> RPAREN EQ <body:SeqExpr> <r:@R> => Box::new(Def::Func { loc: (l, r), ident: String::from(ident), ret: None, escs: vec![true; params.len()], params, body }),
-    <l:@L> FUNC <ident:IDENT> LPAREN <params:TypeBindingList> RPAREN COLON <ret:IDENT> EQ <body:SeqExpr> <r:@R> => Box::new(Def::Func { loc: (l, r), ident: String::from(ident), ret: Some(String::from(ret)), escs: vec![true; params.len()], params, body }),
+    <l:@L> FUNC <ident:IDENT> LPAREN <params:TypeBindingList> RPAREN EQ <body:SeqExpr> <r:@R> => Box::new(Def::Func { loc: (l, r), ident: String::from(ident), ret_type: None, escs: vec![true; params.len()], params, body }),
+    <l:@L> FUNC <ident:IDENT> LPAREN <params:TypeBindingList> RPAREN COLON <ret_type:IDENT> EQ <body:SeqExpr> <r:@R> => Box::new(Def::Func { loc: (l, r), ident: String::from(ident), ret_type: Some(String::from(ret_type)), escs: vec![true; params.len()], params, body }),
 };
 
 DefList: Vec<Def> = {
@@ -138,7 +138,7 @@ DefList: Vec<Def> = {
 
 Type: Box<Type> = {
     <l:@L> <type_:IDENT> <r:@R> => Box::new(Type::Alias { loc: (l, r), type_: String::from(type_) }),
-    <l:@L> ARRAY OF <elem:IDENT> <r:@R> => Box::new(Type::Array { loc: (l, r), elem: String::from(elem) }),
+    <l:@L> ARRAY OF <elem_type:IDENT> <r:@R> => Box::new(Type::Array { loc: (l, r), elem_type: String::from(elem_type) }),
     <l:@L> LBRACE <attrs:TypeBindingList> RBRACE <r:@R> => Box::new(Type::Record { loc: (l, r), attrs }),
 };
 

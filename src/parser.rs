@@ -307,7 +307,7 @@ mod tests {
                         ident: String::from("IntArray"),
                         type_: Box::new(Type::Array {
                             loc: (55, 67),
-                            elem: String::from("int"),
+                            elem_type: String::from("int"),
                         }),
                     },
                     Def::Type {
@@ -324,7 +324,7 @@ mod tests {
                     Def::Func {
                         loc: (107, 128),
                         ident: String::from("zero"),
-                        ret: None,
+                        ret_type: None,
                         params: vec![],
                         escs: vec![],
                         body: Box::new(Expr::Seq {
@@ -339,7 +339,7 @@ mod tests {
                     Def::Func {
                         loc: (129, 168),
                         ident: String::from("add_one"),
-                        ret: Some(String::from("int")),
+                        ret_type: Some(String::from("int")),
                         params: vec![(String::from("x"), String::from("int"))],
                         escs: vec![true],
                         body: Box::new(Expr::Seq {

@@ -7,10 +7,7 @@ use crate::{
 use cranelift::{
     codegen::{
         binemit::NullTrapSink,
-        ir::{
-            types::*,
-            StackSlot,
-        },
+        ir::{types::*, StackSlot},
         isa,
     },
     frontend::{FunctionBuilder, FunctionBuilderContext},
@@ -50,8 +47,8 @@ impl Compiler {
             String::from("printi"),
             Func {
                 name: String::from("printi"),
-                params: vec![Type::Integer],
-                ret: Type::Unit,
+                param_types: vec![Type::Integer],
+                ret_type: Type::Unit,
                 depth: 0,
             },
         );
@@ -59,8 +56,8 @@ impl Compiler {
             String::from("print"),
             Func {
                 name: String::from("print"),
-                params: vec![Type::String],
-                ret: Type::Unit,
+                param_types: vec![Type::String],
+                ret_type: Type::Unit,
                 depth: 0,
             },
         );
@@ -192,7 +189,7 @@ impl Compiler {
             } => {
                 let func = self.funcs.get(callee).ok_or(Error::UndefFunc(loc))?.clone();
 
-                if func.params.len() != args.len() {
+                if func.param_types.len() != args.len() {
                     return Err(Error::ParamMismatch(loc));
                 }
 
@@ -207,8 +204,8 @@ impl Compiler {
                     arg_types.push(arg_type);
                 }
 
-                for (param, arg_type) in func.params.iter().zip(arg_types.iter()) {
-                    if param != arg_type {
+                for (param_type, arg_type) in func.param_types.iter().zip(arg_types.iter()) {
+                    if param_type != arg_type {
                         return Err(Error::ParamMismatch(loc));
                     }
                 }
@@ -218,7 +215,7 @@ impl Compiler {
 
                 Ok((
                     self.translate_call(&func.name[..], &sig, &arg_values, builder),
-                    func.ret,
+                    func.ret_type,
                 ))
             }
             Expr::Let {
@@ -282,7 +279,7 @@ impl Compiler {
                 ref init,
             } => {
                 let type_ = *self.types.get(type_).ok_or(Error::UndefType(loc))?;
-                let elem = match type_ {
+                let elem_type = match type_ {
                     Type::Array(id) => Ok(*self.arrays.get(&id).unwrap()),
                     _ => Err(Error::TypeNotArray(loc)),
                 }?;
@@ -290,7 +287,7 @@ impl Compiler {
                 let (size_value, size_type) = self.handle_rvalue(&**size, depth, builder, link)?;
                 let (init_value, init_type) = self.handle_rvalue(&**init, depth, builder, link)?;
 
-                if init_type != elem {
+                if init_type != elem_type {
                     return Err(Error::ArrayInitMismatch(loc));
                 }
                 if size_type != Type::Integer {
@@ -312,11 +309,11 @@ impl Compiler {
                 ref array,
                 ref index,
             } => {
-                let (addr, elem) =
+                let (addr, elem_type) =
                     self.translate_index(&**array, &**index, loc, depth, builder, link)?;
                 Ok((
                     self.translate_load(Access::Heap(addr), depth, builder, link),
-                    elem,
+                    elem_type,
                 ))
             }
             Expr::String { ref value, .. } => {
@@ -464,9 +461,9 @@ impl Compiler {
                 ref array,
                 ref index,
             } => {
-                let (addr, elem) =
+                let (addr, elem_type) =
                     self.translate_index(&**array, &**index, loc, depth, builder, link)?;
-                Ok((Access::Heap(addr), elem))
+                Ok((Access::Heap(addr), elem_type))
             }
             _ => todo!(),
         }
@@ -489,19 +486,19 @@ impl Compiler {
             loc,
             ref ident,
             ref params,
-            ref ret,
+            ref ret_type,
             ..
         } = defs[tail]
         {
             let mut func: Func = Default::default();
             self.seq += 1;
             func.name = format!("{}{}", ident, self.seq);
-            for param in params.iter() {
-                func.params
-                    .push(*self.types.get(&param.1).ok_or(Error::UndefType(loc))?);
+            for (_, param_type) in params.iter() {
+                func.param_types
+                    .push(*self.types.get(param_type).ok_or(Error::UndefType(loc))?);
             }
-            func.ret = match *ret {
-                Some(ref ret) => *self.types.get(ret).ok_or(Error::UndefType(loc))?,
+            func.ret_type = match *ret_type {
+                Some(ref ret_type) => *self.types.get(ret_type).ok_or(Error::UndefType(loc))?,
                 None => Type::Unit,
             };
             func.depth = depth + 1;
@@ -543,7 +540,7 @@ impl Compiler {
 
             for (i, (((ident, _), type_), esc)) in params
                 .iter()
-                .zip(func.params.iter())
+                .zip(func.param_types.iter())
                 .zip(escs.iter())
                 .enumerate()
             {
@@ -565,7 +562,7 @@ impl Compiler {
 
             self.vars.exit_scope();
 
-            if ret_type != func.ret {
+            if ret_type != func.ret_type {
                 return Err(Error::RetMismatch(loc));
             }
 
@@ -606,9 +603,9 @@ impl Compiler {
                     aliases.insert(ident.clone(), type_.clone());
                     alias_locs.insert(ident.clone(), loc);
                 }
-                ASTType::Array { ref elem, .. } => {
+                ASTType::Array { ref elem_type, .. } => {
                     self.seq += 1;
-                    arrays.insert(self.seq, elem.clone());
+                    arrays.insert(self.seq, elem_type.clone());
                     array_locs.insert(self.seq, loc);
                     self.types.insert(ident.clone(), Type::Array(self.seq));
                     aliases.remove(ident);
@@ -645,10 +642,10 @@ impl Compiler {
             self.types.insert(ident, type_);
         }
 
-        for (id, elem) in arrays.iter() {
+        for (id, elem_type) in arrays.iter() {
             let loc = *array_locs.get(id).unwrap();
-            let elem = self.types.get(elem).ok_or(Error::UndefType(loc))?;
-            self.arrays.insert(*id, *elem);
+            let elem_type = self.types.get(elem_type).ok_or(Error::UndefType(loc))?;
+            self.arrays.insert(*id, *elem_type);
         }
 
         if tail > 0 {
@@ -717,7 +714,7 @@ impl Compiler {
         let (array_value, array_type) = self.handle_rvalue(array, depth, builder, link)?;
         let (index_value, index_type) = self.handle_rvalue(index, depth, builder, link)?;
 
-        let elem = match array_type {
+        let elem_type = match array_type {
             Type::Array(id) => Ok(*self.arrays.get(&id).unwrap()),
             _ => Err(Error::ArrayNotArray(loc)),
         }?;
@@ -726,7 +723,7 @@ impl Compiler {
         }
 
         let offset = builder.ins().imul_imm(index_value, 8);
-        Ok((builder.ins().iadd(array_value, offset), elem))
+        Ok((builder.ins().iadd(array_value, offset), elem_type))
     }
 
     fn new_var(&mut self, esc: bool, depth: i32, builder: &mut FunctionBuilder) -> Access {
@@ -832,8 +829,8 @@ impl PartialEq for Type {
 #[derive(Clone, Default)]
 struct Func {
     name: String,
-    params: Vec<Type>,
-    ret: Type,
+    param_types: Vec<Type>,
+    ret_type: Type,
     depth: i32,
 }
 
@@ -842,7 +839,7 @@ impl Func {
         if self.depth > 0 {
             sig.params.push(AbiParam::new(I64));
         }
-        for _ in self.params.iter() {
+        for _ in self.param_types.iter() {
             sig.params.push(AbiParam::new(I64));
         }
         sig.returns.push(AbiParam::new(I64));
