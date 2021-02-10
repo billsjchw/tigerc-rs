@@ -1,30 +1,46 @@
 use std::{fs, process::Command};
 
 #[test]
-fn test_tigerc() {
+fn test_queens() {
+    test("queens");
+}
+
+#[test]
+fn test_dec2bin() {
+    test("dec2bin");
+}
+
+fn test(name: &str) {
+    let prog = format!("tests/testcases/{}.tig", name);
+    let obj = format!("tests/{}.o", name);
+    let exec = format!("tests/{}", name);
+    let out = format!("tests/testcases/{}.out", name);
+
     Command::new("cargo").args(&[
         "run",
         "--",
-        "tests/testcases/queens.tig",
+        &prog[..],
         "-o",
-        "tests/queens.o",
+        &obj[..],
     ]).output().unwrap();
     Command::new("cc").args(&[
         "src/tiger.c",
-        "tests/queens.o",
+        &obj[..],
         "-o",
-        "tests/queens",
+        &exec[..],
     ]).output().unwrap();
-    let actual = Command::new("tests/queens").output().unwrap().stdout;
+
+    let actual = Command::new(&exec[..]).output().unwrap().stdout;
+
     Command::new("rm").args(&[
         "-rf",
-        "tests/queens.o",
+        &obj[..],
     ]).output().unwrap();
     Command::new("rm").args(&[
         "-rf",
-        "tests/queens",
+        &exec[..],
     ]).output().unwrap();
-    
-    let expected = fs::read("tests/testcases/queens.out").unwrap();
+
+    let expected = fs::read(&out[..]).unwrap();
     assert_eq!(actual, expected);
 }

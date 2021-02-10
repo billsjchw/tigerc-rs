@@ -1,0 +1,15 @@
+/* Decimal to binary */
+let
+    function dec2bin(num: int): string = (
+        if num < 2 then (
+            num + ""
+        ) else (
+            dec2bin(num / 2) + (num - num / 2 * 2)
+        )
+    )
+in
+    print(0 + " -> " + dec2bin(0) + "\n");
+    print(1 + " -> " + dec2bin(1) + "\n");
+    print(100 + " -> " + dec2bin(100) + "\n");
+    print(9223372036854775807 + " -> " + dec2bin(9223372036854775807) + "\n");
+end
