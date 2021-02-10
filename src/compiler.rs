@@ -56,6 +56,33 @@ impl Compiler {
                 depth: 0,
             },
         );
+        funcs.insert(
+            String::from("getchar"),
+            Func {
+                name: String::from("tiger_getchar"),
+                param_types: vec![],
+                ret_type: Type::String,
+                depth: 0,
+            },
+        );
+        funcs.insert(
+            String::from("ord"),
+            Func {
+                name: String::from("tiger_ord"),
+                param_types: vec![Type::String],
+                ret_type: Type::Integer,
+                depth: 0,
+            },
+        );
+        funcs.insert(
+            String::from("strlen"),
+            Func {
+                name: String::from("tiger_strlen"),
+                param_types: vec![Type::String],
+                ret_type: Type::Integer,
+                depth: 0,
+            },
+        );
 
         let mut types = SymbolTable::new();
         types.insert(String::from("int"), Type::Integer);
@@ -488,7 +515,7 @@ impl Compiler {
                 ))
             }
             Expr::String { ref value, .. } => {
-                let len = value.len() as u64;
+                let len = value.len() as i64;
                 let mut contents = len.to_le_bytes().to_vec();
                 contents.append(&mut value.as_bytes().to_vec());
 
