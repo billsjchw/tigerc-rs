@@ -94,7 +94,7 @@ uint64_t tiger_strcat(uint64_t lhs, uint64_t rhs) {
 uint64_t tiger_strint(uint64_t lhs, int64_t rhs) {
     uint64_t lhs_len = *(uint64_t *) lhs;
     char *lhs_str = (char *) lhs + 8;
-    void *result = malloc(lhs_len + 20);
+    void *result = malloc(lhs_len + 30);
     char *rhs_str = (char *) result + 8 + lhs_len;
     uint64_t rhs_len = 0;
 
@@ -113,7 +113,7 @@ uint64_t tiger_strint(uint64_t lhs, int64_t rhs) {
 uint64_t tiger_intstr(int64_t lhs, uint64_t rhs) {
     uint64_t rhs_len = *(uint64_t *) rhs;
     char *rhs_str = (char *) rhs + 8;
-    void *result = malloc(rhs_len + 20);
+    void *result = malloc(rhs_len + 30);
     char *lhs_str = (char *) result + 8;
     uint64_t lhs_len = 0;
 
